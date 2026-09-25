@@ -61,7 +61,10 @@ README.md   Único README de la entrega
 
 ## Git
 
-- Ramas: `tipo/descripcion-corta` con tipos `feature/`, `fix/`, `chore/`, `test/`, `docs/`. Salen de `main` y vuelven por PR.
+- Ramas base:
+  - `staging`: rama de integración. Todas las ramas de trabajo salen de `staging` y vuelven a `staging` por PR.
+  - `main`: entrega final. Solo recibe un PR `staging` → `main` al terminar la prueba. Nunca abrir PRs de ramas de trabajo hacia `main`.
+- Ramas de trabajo: `tipo/descripcion-corta` con tipos `feature/`, `fix/`, `chore/`, `test/`, `docs/`.
 - Commits: Conventional Commits en español, en imperativo: `tipo(alcance): descripción`.
   - Tipos: `feat`, `fix`, `test`, `refactor`, `chore`, `docs`.
   - Alcances: `frontend`, `backend`, `prisma`, `deploy`, `readme`, `claude`.
