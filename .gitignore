@@ -18,6 +18,9 @@ coverage/
 # Documentación privada (credenciales)
 docs/
 
+# Claude Code: preferencias personales
+.claude/settings.local.json
+
 # Logs
 logs/
 *.log
