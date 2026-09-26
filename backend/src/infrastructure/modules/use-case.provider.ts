@@ -1,4 +1,4 @@
-import type { InjectionToken, Provider } from '@nestjs/common';
+import type { FactoryProvider, InjectionToken } from '@nestjs/common';
 
 type Constructor<Args extends unknown[], Instance> = new (
   ...args: Args
@@ -18,7 +18,7 @@ type Constructor<Args extends unknown[], Instance> = new (
 export const useCaseProvider = <Args extends unknown[], Instance>(
   useCase: Constructor<Args, Instance>,
   inject: { [Index in keyof Args]: InjectionToken },
-): Provider<Instance> => ({
+): FactoryProvider<Instance> => ({
   provide: useCase,
   useFactory: (...dependencies: Args) => new useCase(...dependencies),
   inject,
