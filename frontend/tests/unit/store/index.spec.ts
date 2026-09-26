@@ -23,7 +23,11 @@ describe('makeStore', () => {
 });
 
 describe('store', () => {
-  it('es el store de la aplicación, con el mismo estado inicial', () => {
-    expect(store.getState()).toEqual(makeStore().getState());
+  it('es el store de la aplicación, con el estado inicial de cada slice', () => {
+    const { products, checkout } = store.getState();
+
+    expect(products).toEqual(initialProductsState);
+    // El checkout del store de la app además lleva los metadatos de redux-persist.
+    expect(checkout).toMatchObject(initialCheckoutState);
   });
 });

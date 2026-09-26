@@ -1,8 +1,22 @@
+import {
+  initialCheckoutState,
+  type CheckoutState,
+} from '@features/checkout/checkout.slice';
 import type { CheckoutConfig } from '@shared/api/checkout.api';
 import type {
   CardDetails,
   TokenizedCard,
 } from '@shared/api/payment-gateway.api';
+import type { RootState } from '@store/index';
+
+/** Estado del checkout ya recuperado de localStorage, para precargar un store. */
+export const aCheckoutState = (
+  overrides: Partial<CheckoutState> = {},
+): RootState['checkout'] => ({
+  ...initialCheckoutState,
+  ...overrides,
+  _persist: { version: 1, rehydrated: true },
+});
 
 /** Configuración del checkout como la devuelve el backend. */
 export const aCheckoutConfig = (

@@ -9,22 +9,26 @@ import {
   selectContactDraft,
   selectPaymentGatewaySettings,
 } from '@features/checkout/checkout.selectors';
-import { initialCheckoutState } from '@features/checkout/checkout.slice';
+import {
+  initialCheckoutState,
+  type CheckoutState,
+} from '@features/checkout/checkout.slice';
 import { makeStore, type RootState } from '@store/index';
 import {
   aCheckoutConfig,
+  aCheckoutState,
   aTokenizedCard,
 } from '@testing/fixtures/checkout.fixture';
 import { aProduct, PRODUCT_ID } from '@testing/fixtures/product.fixture';
 
-const stateWith = (checkout: Partial<RootState['checkout']>): RootState =>
+const stateWith = (checkout: Partial<CheckoutState>): RootState =>
   makeStore({
     products: {
       items: [aProduct(), aProduct({ id: 'otro' })],
       status: 'succeeded',
       errorCode: null,
     },
-    checkout: { ...initialCheckoutState, ...checkout },
+    checkout: aCheckoutState(checkout),
   }).getState();
 
 describe('selectores del checkout', () => {
