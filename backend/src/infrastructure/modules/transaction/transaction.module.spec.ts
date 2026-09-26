@@ -44,6 +44,12 @@ describe('TransactionModule', () => {
         mockConfigService({
           BASE_FEE_IN_CENTS: 250_000,
           DELIVERY_FEE_IN_CENTS: 800_000,
+          PAYMENT_GATEWAY_BASE_URL: 'https://gateway.test/v1',
+          PAYMENT_GATEWAY_PUBLIC_KEY: 'pub_test_abc123',
+          PAYMENT_GATEWAY_INTEGRITY_SECRET: 'test_integrity_0123456789abcdef',
+          PAYMENT_GATEWAY_TIMEOUT_MS: 5_000,
+          PAYMENT_GATEWAY_POLL_TIMEOUT_MS: 3,
+          PAYMENT_GATEWAY_POLL_INTERVAL_MS: 1,
         }),
       )
       .compile();
