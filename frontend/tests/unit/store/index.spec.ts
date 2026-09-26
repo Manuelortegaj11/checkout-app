@@ -1,10 +1,14 @@
+import { initialCheckoutState } from '@features/checkout/checkout.slice';
 import { initialProductsState } from '@features/products/products.slice';
 import { makeStore, store } from '@store/index';
 import { aProduct } from '@testing/fixtures/product.fixture';
 
 describe('makeStore', () => {
   it('crea el store con el estado inicial de cada slice', () => {
-    expect(makeStore().getState()).toEqual({ products: initialProductsState });
+    expect(makeStore().getState()).toEqual({
+      products: initialProductsState,
+      checkout: initialCheckoutState,
+    });
   });
 
   it('acepta un estado inicial para las pruebas', () => {
