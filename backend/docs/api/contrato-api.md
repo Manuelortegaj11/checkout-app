@@ -177,9 +177,40 @@ erDiagram
 - **La entrega se crea junto con la transacción** en `PENDING_PAYMENT`, porque los datos de envío se capturan antes de pagar. Al aprobarse el pago pasa a `ASSIGNED` (el producto queda asignado al cliente); si no se aprueba, a `CANCELLED`.
 - **Los datos de la tarjeta no se guardan** en ninguna tabla: ni número, ni CVC, ni el token.
 
+- **Las reglas numéricas** (`priceInCents > 0`, `stock >= 0`, `quantity 1..10`) las hace cumplir el dominio y la actualización condicional del stock. El esquema de Prisma no soporta restricciones `CHECK`, y añadirlas exigiría editar una migración a mano, algo que no se hace en este proyecto.
+
+### Nombres en la base de datos
+
+Todo en inglés. En Prisma, modelos en `PascalCase` singular y campos en `camelCase`; en PostgreSQL, tablas en `snake_case` plural y columnas en `snake_case`:
+
+| Modelo (Prisma) | Tabla (PostgreSQL) | Ejemplo de campo → columna |
+|-----------------|--------------------|----------------------------|
+| `Product` | `products` | `priceInCents` → `price_in_cents` |
+| `Customer` | `customers` | `fullName` → `full_name` |
+| `Transaction` | `transactions` | `gatewayTransactionId` → `gateway_transaction_id` |
+| `Delivery` | `deliveries` | `addressLine1` → `address_line1` |
+| `TransactionStatus` (enum) | `transaction_status` | `PENDING`, `APPROVED`… |
+| `DeliveryStatus` (enum) | `delivery_status` | `PENDING_PAYMENT`, `ASSIGNED`… |
+
+- Índices y claves foráneas con los nombres que genera Prisma: `transactions_product_id_idx`, `transactions_product_id_fkey`…
+- Identificadores **UUID v7** (ordenados por tiempo, mejores para los índices) y fechas `TIMESTAMPTZ(3)`.
+- El esquema está en `backend/prisma/schema.prisma`. **Las migraciones se generan siempre con `pnpm db:migrate --name <cambio>`**; nunca se escriben ni editan a mano.
+
 ### Datos iniciales (seed)
 
-Entre 4 y 6 productos ficticios con descripción, precio, stock e imagen. No hay endpoints para crear productos.
+`backend/prisma/seed.ts`, ejecutado con `pnpm db:seed`. No hay endpoints para crear productos.
+
+| ID | Producto | Precio (COP) | Stock |
+|----|----------|--------------|-------|
+| `01920000-0000-7000-8000-000000000001` | Audífonos inalámbricos | 189.900 | 12 |
+| `01920000-0000-7000-8000-000000000002` | Reloj inteligente | 349.900 | 8 |
+| `01920000-0000-7000-8000-000000000003` | Teclado mecánico | 259.900 | 5 |
+| `01920000-0000-7000-8000-000000000004` | Mouse ergonómico | 89.900 | 20 |
+| `01920000-0000-7000-8000-000000000005` | Parlante Bluetooth portátil | 149.900 | **1** (para probar el agotamiento tras una compra) |
+| `01920000-0000-7000-8000-000000000006` | Cámara web 4K | 219.900 | **0** (para probar el estado agotado) |
+
+- Es **idempotente**: crea los productos que faltan y no modifica los existentes, así que nunca pisa el stock de una base de datos en uso.
+- Para volver al estado inicial en desarrollo: `pnpm db:reset` (borra la base, aplica las migraciones y vuelve a ejecutar el seed).
 
 ## 3. Estados
 

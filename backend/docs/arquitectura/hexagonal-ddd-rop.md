@@ -114,10 +114,11 @@ graph TB
 
 ```text
 backend/
+├── prisma.config.ts                    # CLI de Prisma: esquema, migraciones, seed y DATABASE_URL
 ├── prisma/
-│   ├── schema.prisma                   # Modelo de datos
-│   ├── migrations/                     # Migraciones generadas por Prisma
-│   └── seed.ts                         # Productos ficticios
+│   ├── schema.prisma                   # Modelo de datos (nombres en inglés, tablas snake_case)
+│   ├── migrations/                     # Generadas SOLO con `pnpm db:migrate --name <cambio>`
+│   └── seed.ts                         # Productos ficticios (idempotente)
 ├── src/
 │   ├── main.ts                         # Bootstrap HTTP: helmet, CORS, ValidationPipe, Swagger
 │   ├── app.module.ts
@@ -141,7 +142,8 @@ backend/
 │   │
 │   └── infrastructure/                 # ADAPTERS: implementan los ports
 │       ├── persistence/
-│       │   ├── prisma.service.ts
+│       │   ├── generated/prisma/       # Cliente generado por Prisma (ignorado por Git)
+│       │   ├── prisma.service.ts       # Único punto de acceso a Prisma
 │       │   ├── repositories/           # <feature>.prisma.repository.ts
 │       │   └── mappers/                # <feature>.prisma.mapper.ts: fila ↔ entidad
 │       ├── payment-gateway/            # payment-gateway.client.ts + mapper de estados
