@@ -1,0 +1,195 @@
+// @ts-check
+import eslint from '@eslint/js';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+// Capas prohibidas, tanto por alias (@store/...) como por ruta relativa (../store/...).
+const forbiddenLayers = (layers) => ({
+  regex: `(^@|/)(${layers.join('|')})(/|$)`,
+  message:
+    'Regla de dependencias: app → features → shared (y store). shared no importa features, store ni app.',
+});
+
+// Una feature se usa desde otra solo a través de su index.ts.
+const FEATURE_INTERNALS = {
+  regex: '^@features/[^/]+/',
+  message:
+    'Importa otra feature desde su API pública (@features/<feature>), no sus archivos internos.',
+};
+
+// Flux: la vista despacha thunks; nunca habla con la API.
+const API_FROM_VIEW = {
+  regex: '(^@shared|/shared)/api(/|$)',
+  message:
+    'Los componentes no llaman a la API: despachan un thunk y leen el resultado con un selector.',
+};
+
+// Entre carpetas se importa con alias; las rutas relativas solo para vecinos cercanos.
+const LONG_RELATIVE_IMPORT = {
+  regex: '^\\.\\./\\.\\./',
+  message:
+    'Usa los alias (@app, @features, @shared, @store, @testing) en lugar de subir más de un nivel.',
+};
+
+// Los fixtures y helpers de prueba solo existen para los tests, ni por alias ni por ruta relativa.
+const TESTING_IMPORTS = {
+  regex: '^@testing/|^(\\.\\./)+tests/',
+  message:
+    'El código de producción no importa nada de tests/ (@testing): solo las pruebas.',
+};
+
+const restrictImports = (...patterns) => [
+  'error',
+  { patterns: [...patterns, LONG_RELATIVE_IMPORT] },
+];
+
+const IMPORT_META_ENV = {
+  selector: "MemberExpression[object.type='MetaProperty'][property.name='env']",
+  message:
+    'Las variables VITE_* solo se leen en shared/config/env.ts (Jest lo sustituye por uno de prueba).',
+};
+
+const DANGEROUS_HTML = {
+  selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+  message: 'Nunca dangerouslySetInnerHTML: React ya escapa el contenido.',
+};
+
+// Seguridad: el número de tarjeta y el CVC viven solo en el formulario.
+const CARD_DATA_IN_STATE = {
+  selector:
+    ':matches(Property, PropertyDefinition, TSPropertySignature)[key.name=/^(cardNumber|cvc|cvv)$/i]',
+  message:
+    'El número de tarjeta y el CVC nunca entran al store ni a localStorage: solo token, marca y últimos 4 dígitos.',
+};
+
+const FETCH = {
+  name: 'fetch',
+  message:
+    'Solo shared/api/http-client.ts usa fetch: añade un servicio en shared/api.',
+};
+
+const BROWSER_STORAGE = ['localStorage', 'sessionStorage'].map((name) => ({
+  name,
+  message:
+    'El estado se persiste solo con redux-persist (store/), así nada sensible acaba en el navegador por descuido.',
+}));
+
+export default tseslint.config(
+  {
+    ignores: ['dist/**', 'coverage/**', 'eslint.config.js'],
+  },
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  reactHooks.configs.flat.recommended,
+  reactRefresh.configs.vite,
+  jsxA11y.flatConfigs.recommended,
+  eslintPluginPrettierRecommended,
+  {
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+    },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': restrictImports(TESTING_IMPORTS),
+      'no-restricted-syntax': ['error', IMPORT_META_ENV, DANGEROUS_HTML],
+      'no-restricted-globals': ['error', FETCH, ...BROWSER_STORAGE],
+    },
+  },
+  {
+    files: ['src/shared/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': restrictImports(
+        TESTING_IMPORTS,
+        forbiddenLayers(['features', 'store', 'app']),
+      ),
+    },
+  },
+  {
+    files: ['src/features/**/*.{ts,tsx}', 'src/store/**/*.ts'],
+    rules: {
+      'no-restricted-imports': restrictImports(
+        TESTING_IMPORTS,
+        forbiddenLayers(['app']),
+        FEATURE_INTERNALS,
+      ),
+    },
+  },
+  {
+    files: ['src/features/*/components/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': restrictImports(
+        TESTING_IMPORTS,
+        forbiddenLayers(['app']),
+        FEATURE_INTERNALS,
+        API_FROM_VIEW,
+      ),
+    },
+  },
+  {
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': restrictImports(
+        TESTING_IMPORTS,
+        FEATURE_INTERNALS,
+        API_FROM_VIEW,
+      ),
+    },
+  },
+  {
+    files: ['src/store/**/*.ts', 'src/features/**/*.slice.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        IMPORT_META_ENV,
+        DANGEROUS_HTML,
+        CARD_DATA_IN_STATE,
+      ],
+    },
+  },
+  {
+    // Único punto que lee las variables VITE_*.
+    files: ['src/shared/config/env.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', DANGEROUS_HTML],
+    },
+  },
+  {
+    // Único punto que hace peticiones HTTP.
+    files: ['src/shared/api/http-client.ts'],
+    rules: {
+      'no-restricted-globals': ['error', ...BROWSER_STORAGE],
+    },
+  },
+  {
+    // Pruebas y utilidades de prueba: pueden importar @testing y montar dobles.
+    files: ['tests/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.jest } },
+    rules: {
+      'no-restricted-imports': restrictImports(),
+      '@typescript-eslint/unbound-method': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // Configuración de herramientas: se ejecuta en Node.
+    files: ['*.config.ts'],
+    languageOptions: { globals: globals.node },
+  },
+);

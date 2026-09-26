@@ -75,10 +75,11 @@ Reglas:
 ```text
 frontend/
 ├── index.html                          # Punto de entrada HTML de Vite
-├── vite.config.ts                      # Plugin de React, alias y servidor de desarrollo
-├── jest.config.ts                      # Jest + jsdom, alias y umbral de cobertura
+├── vite.config.ts                      # React + Tailwind, alias y proxy de /api al backend
+├── eslint.config.js                    # Reglas de la arquitectura (ver Regla de dependencias)
+├── jest.config.ts                      # Un proyecto por nivel de prueba, jsdom y umbral de cobertura
 ├── public/
-│   └── images/                         # Imágenes optimizadas (WebP) y logos de marcas de tarjeta
+│   └── images/                         # Productos en WebP y logos SVG de las marcas de tarjeta
 ├── src/
 │   ├── main.tsx                        # Arranque: createRoot + <App />
 │   ├── app/                            # SOLO composición
@@ -104,7 +105,7 @@ frontend/
 │   │       └── index.ts
 │   │
 │   ├── shared/                         # No importa nada de features/ ni app/
-│   │   ├── ui/                         # Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
+│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
 │   │   ├── lib/
 │   │   │   ├── card/                   # luhn.ts, card-brand.ts, expiry.ts, cvc.ts
 │   │   │   ├── format/                 # currency.ts
@@ -141,6 +142,9 @@ app ──► features ──► shared
 - Una feature importa otra **solo a través de su `index.ts`**, nunca de sus archivos internos.
 - `app/` solo compone: elige qué feature mostrar según el paso. Sin lógica de negocio.
 - Los componentes no importan `shared/api/`: el acceso a datos pasa siempre por un thunk.
+- Entre carpetas se importa con alias (`@app`, `@features`, `@shared`, `@store`); dentro de una feature, con rutas relativas a sus vecinos. Subir dos niveles (`../../`) es error de lint.
+
+`eslint.config.js` convierte estas reglas en errores, tanto por alias como por ruta relativa, y añade las de seguridad: `import.meta.env` solo en `shared/config/env.ts`, `fetch` solo en `shared/api/http-client.ts`, nada de `localStorage` ni `sessionStorage` directos (se persiste solo con redux-persist), `cardNumber` y `cvc` prohibidos en el store y en los slices, y nunca `dangerouslySetInnerHTML`.
 
 ### Convenciones de nombres
 
@@ -168,6 +172,39 @@ app ──► features ──► shared
 
 La marca se detecta **mientras se escribe** y se muestra su logo; el número se formatea en grupos de 4.
 
+## Identidad visual: Templetus
+
+La tienda se llama **Templetus**. No usa logotipo ni mascota: la marca se reconoce por el nombre escrito, la paleta, la tipografía y el estilo de los componentes. Los íconos son de **lucide-react**.
+
+### Tokens
+
+Todo color, sombra y radio sale de un token de `src/shared/ui/theme.css` (bloque `@theme` de Tailwind 4), y Tailwind genera sus utilidades (`bg-primary-500`, `text-ink`, `border-line`, `rounded-control`…). Un componente nunca escribe un color literal: así el tema oscuro cambia todos los colores sin tocar componentes.
+
+| Token | Claro | Uso |
+|-------|-------|-----|
+| `primary-500` | `#0066FF` | Azul principal: botón principal, foco, estados activos |
+| `primary-600` · `primary-700` | `#0052D6` · `#0040A8` | Hover y pulsado del principal |
+| `primary-50` · `primary-100` | `#E8F1FF` · `#CFE2FF` | Fondos suaves de estados activos |
+| `secondary-500` | `#00AAFF` | Acento y apoyo; nunca es el botón principal ni el anillo de foco |
+| `canvas` | `#F6F8FC` | Fondo de la página |
+| `surface` · `surface-overlay` | `#FFFFFF` · `#FFFFFF` | Tarjetas; modal y backdrop |
+| `line` · `line-subtle` | `#D6DFEF` · `#E7ECF7` | Bordes |
+| `ink` · `ink-muted` · `ink-subtle` | `#0B1147` · `#46506E` · `#676F8D` | Texto principal, secundario y de apoyo |
+| `success` · `warning` · `danger` · `info` | `#2E7D32` · `#D4A800` · `#D32F2F` · `#0E7490` | Estados, no marca: aprobado, pendiente, rechazado e información. Cada uno tiene su variante `-soft` (fondo) y `-strong` (texto) |
+
+- Los neutros no son grises puros: llevan la tinta azul de la marca, por eso conviven con el principal sin ensuciarse.
+- El texto sobre `primary-500` usa `on-primary` (blanco, contraste 4.83:1).
+- **Tema oscuro automático** con `prefers-color-scheme`: redefine los mismos tokens con valores propios de una superficie oscura (no es el claro invertido).
+
+### Estilo de los componentes
+
+- **Esquinas rectas.** Los radios `control` (lo que se pulsa) y `surface` (lo que contiene) valen 0. Cada componente pide su radio por rol, así que cambiar el token los ajusta todos.
+- **Bordes de 1 px.** Lo que debe destacar se resuelve con color, no con grosor. La excepción es el anillo de foco: 2 px con `focus-visible`.
+- **Tipografía Inter** variable, autoalojada con `@fontsource-variable/inter`, con un respaldo de métricas ajustadas para que el texto no salte al cargar la fuente.
+- **Controles de 44 px de alto** (objetivo táctil) y texto de 16 px en los inputs en móvil, para que iOS no haga zoom al enfocarlos.
+- **Movimiento breve** (160 a 340 ms) con curvas `ease-standard` y `ease-emphasis`; se desactiva con `prefers-reduced-motion`.
+- **Sombras suaves teñidas de azul:** `shadow-elevated` para tarjetas y `shadow-overlay` para el modal y el backdrop.
+
 ## UI responsive (mobile first)
 
 - Diseñar primero para **375 × 667 px** (iPhone SE 2020) y ampliar con los prefijos de Tailwind `sm:`, `md:`, `lg:`.
@@ -188,7 +225,8 @@ React no optimiza imágenes por sí solo: la optimización se hace al preparar l
 
 ## Seguridad
 
-- Vite incrusta en el bundle toda variable `VITE_*`, así que es **pública**. Solo van la URL del backend, la URL de tokenización y la **llave pública**. Nunca una llave privada.
+- La SPA llama a la API en `/api`, en su mismo origen: en local la reenvía el proxy de Vite (`vite.config.ts`) y en producción Nginx. Así no hace falta CORS ni la URL del backend en el bundle.
+- Vite incrusta en el bundle toda variable `VITE_*`, así que es **pública**. Solo van la URL de tokenización y la **llave pública** de la pasarela. Nunca una llave privada.
 - Nunca usar `dangerouslySetInnerHTML`.
 - El número de tarjeta y el CVC no se loguean, no se guardan y no se envían al backend: solo a la tokenización.
 - Las cabeceras de seguridad (CSP, HSTS…) las pone Nginx.
@@ -233,19 +271,17 @@ No hay e2e en el frontend: el recorrido real contra la API y el Sandbox lo cubre
 - [ ] El store y `localStorage` no contienen el número de tarjeta ni el CVC.
 - [ ] Nada se desborda a 375 px de ancho.
 - [ ] Toda imagen tiene dimensiones reservadas y está en WebP o SVG.
+- [ ] Ningún componente usa colores, sombras ni radios literales: todo sale de los tokens de `theme.css`.
 - [ ] `shared/` no importa de `features/`, `store/` ni `app/`.
 - [ ] Cobertura por encima del 80%.
 - [ ] `import.meta.env` solo aparece en `shared/config/env.ts`.
 - [ ] Ninguna dependencia es un framework (Next.js, Remix, Gatsby…).
 - [ ] El nombre comercial de la pasarela no aparece en el código.
 
-Comprobación rápida desde `frontend/`:
+Comprobación automática desde `frontend/`:
 
 ```bash
-grep -rnE "fetch\(|shared/api" src/features/*/components src/app
-grep -rnE "from '.*(features|store|app)/" src/shared
-grep -rnE "cardNumber|cvc" src/store src/features/*/*.slice.ts
-grep -rln "import.meta.env" src | grep -v "shared/config/env.ts"
+pnpm typecheck && pnpm lint && pnpm test:cov
 ```
 
-Las cuatro deben devolver cero resultados. En el store de la tarjeta solo existen `token`, `brand` y `last4`.
+`pnpm lint` convierte en errores las reglas de este checklist que se pueden comprobar en el código (capas, componentes sin `shared/api`, `import.meta.env`, `fetch`, almacenamiento del navegador y datos de tarjeta en el store) y falla también con cualquier aviso. En el store de la tarjeta solo existen `token`, `brand` y `last4`.

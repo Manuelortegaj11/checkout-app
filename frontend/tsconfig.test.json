@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "jest", "@testing-library/jest-dom"],
+    // ts-jest compila a CommonJS para Jest: los paquetes CJS se importan como en Vite.
+    "esModuleInterop": true,
+    "paths": {
+      "@app/*": ["./src/app/*"],
+      "@features/*": ["./src/features/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@store/*": ["./src/store/*"],
+      "@testing/*": ["./tests/support/*"]
+    }
+  },
+  "include": ["src", "tests"]
+}

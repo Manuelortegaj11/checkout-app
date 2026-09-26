@@ -39,11 +39,15 @@ README.md   Único README de la entrega
 - **Solo ReactJS.** El enunciado solo permite React o Vue y prohíbe expresamente Next.js y cualquier otro framework (Remix, Gatsby, React Router en modo framework…). Vite es solo la herramienta de build. Toda la API vive en `backend/`.
 - Estructura en `frontend/src/`: `main.tsx` → `app/` (solo composición) → `features/` (`products`, `checkout`, `transaction`) → `shared/` (`ui`, `lib`, `api`, `config`), más `store/`. `shared/` no importa nada de `features/`, `store/` ni `app/`.
 - **Sin router:** la pantalla visible se deriva solo de `checkout.step`, así una URL nunca contradice el estado persistido.
+- La SPA llama siempre a la API en `/api`, en su mismo origen: en local la reenvía el proxy de Vite y en producción Nginx. Ni CORS ni URL del backend en el bundle.
 - Variables de entorno `VITE_*` (son públicas: van dentro del bundle). Solo se leen en `shared/config/env.ts`.
+- Alias por capa: `@app/*`, `@features/*`, `@shared/*`, `@store/*` y `@testing/*` (solo en pruebas). Nunca `../../`.
+- ESLint hace cumplir la arquitectura: falla si `shared` importa `features`, `store` o `app`; si un componente importa `shared/api`; si se usa `import.meta.env` fuera de `shared/config/env.ts`, `fetch` fuera de `shared/api/http-client.ts` o `localStorage` directamente; si `cardNumber` o `cvc` aparecen en el store; o con `dangerouslySetInnerHTML`. No desactivar esas reglas; corregir el código.
 - Tests con **Jest** (`ts-jest` + `jsdom`), no con Vitest: el enunciado exige Jest. Viven en `frontend/tests/` con el mismo esquema que el backend: `unit/` espejo de `src/`, `integration/` para los flujos del checkout con el store real y `support/`.
 - Estado global con Redux Toolkit siguiendo Flux: vista → `dispatch` → thunk → servicio (`shared/api`) → reducer → selector → vista. Los componentes nunca llaman a `fetch`.
 - El checkout es una máquina de pasos en el store (`PRODUCT` → `PAYMENT_FORM` → `SUMMARY` → `PROCESSING` → `RESULT` → `PRODUCT`). `redux-persist` solo sobre `checkout`, para sobrevivir a un refresh; nunca se persisten el número de tarjeta ni el CVC.
 - Mobile first. Referencia mínima: iPhone SE (2020), 375 px de ancho. Sin desbordamientos; flexbox/grid. Imágenes en WebP/SVG con dimensiones reservadas.
+- **Identidad visual: Templetus.** La tienda se llama Templetus y no usa logotipo ni mascota: el nombre va escrito. Azul principal `#0066FF`, secundario `#00AAFF`, neutros con tinta azul, tipografía Inter, esquinas rectas, bordes de 1 px y tema oscuro automático. Todo color, sombra y radio sale de los tokens de `shared/ui/theme.css`; los componentes nunca usan valores literales. Íconos con `lucide-react`.
 - Validar tarjeta (Luhn, fecha, CVC) y detectar VISA/MasterCard con funciones puras en `shared/lib/card/`.
 - Referencia completa: `frontend/docs/arquitectura/spa-redux-flux.md`. Para crear o modificar código en `frontend/src`, usa la skill `/frontend-feature`.
 
@@ -153,6 +157,18 @@ Primera vez: `docker compose up -d` (raíz) → `pnpm install` → `pnpm db:depl
 
 Antes de dar una tarea del backend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov && pnpm test:integration`. Si tocaste endpoints, persistencia o la pasarela, también `pnpm test:e2e`.
 
-### Frontend
+### Frontend (desde `frontend/`)
 
-Se completarán al crear el proyecto.
+| Comando | Qué hace |
+|---|---|
+| `pnpm install` | Instala dependencias |
+| `pnpm dev` | SPA en modo desarrollo (`http://localhost:3000`); `/api` se reenvía al backend en `localhost:3001` |
+| `pnpm build` / `pnpm preview` | Comprueba tipos, compila a `dist/` y sirve esa versión en `localhost:3000` |
+| `pnpm test` / `pnpm test:unit` | Pruebas unitarias (`tests/unit`) |
+| `pnpm test:cov` | Pruebas unitarias con cobertura; falla si baja del 80% |
+| `pnpm test:watch` | Pruebas unitarias en modo observación |
+| `pnpm lint` / `pnpm lint:fix` | ESLint (incluye las reglas de arquitectura); falla con cualquier aviso |
+| `pnpm typecheck` | Comprobación de tipos del código y de las pruebas |
+| `pnpm format` | Prettier (también ordena las clases de Tailwind) |
+
+Antes de dar una tarea del frontend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov`.

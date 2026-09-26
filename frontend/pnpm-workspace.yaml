@@ -1,0 +1,11 @@
+# Scripts de instalación de dependencias (pnpm los bloquea por defecto).
+allowBuilds:
+  # Solo compila desde el código fuente si falta el binario precompilado.
+  '@parcel/watcher': false
+  # Solo verifica el binario nativo del resolver de Jest.
+  unrs-resolver: false
+peerDependencyRules:
+  allowedVersions:
+    # eslint-plugin-jsx-a11y 6.10 declara ESLint hasta la 9, pero solo usa
+    # context.report, context.options y context.settings, que siguen en la 10.
+    eslint-plugin-jsx-a11y>eslint: '10'
