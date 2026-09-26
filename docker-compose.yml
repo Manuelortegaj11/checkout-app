@@ -1,0 +1,36 @@
+# PostgreSQL para desarrollo local (y reutilizable en el servidor).
+# La API y el frontend corren fuera de Docker con pnpm.
+#
+#   docker compose up -d      # levantar
+#   docker compose down       # detener (los datos se conservan en el volumen)
+#   docker compose down -v    # detener y borrar los datos
+#
+# Los valores por defecto son solo para desarrollo. En el servidor se definen
+# POSTGRES_USER, POSTGRES_PASSWORD y POSTGRES_DB en un .env junto a este archivo.
+
+# Nombre fijo: el volumen no cambia aunque se renombre la carpeta del repositorio.
+name: checkout-app
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: checkout-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-checkout}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-checkout}
+      POSTGRES_DB: ${POSTGRES_DB:-checkout}
+    ports:
+      # 5433 en la máquina para no chocar con un PostgreSQL local en 5432.
+      # Solo en localhost: la base de datos no queda expuesta a la red.
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
