@@ -80,6 +80,37 @@
 
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-shimmer: shimmer 1.35s ease-in-out infinite;
+
+  @keyframes shimmer {
+    from {
+      background-position:
+        110% 0,
+        0 0;
+    }
+    to {
+      background-position:
+        -110% 0,
+        0 0;
+    }
+  }
+}
+
+/* Hueco de carga: un brillo recorre una superficie teñida con el azul de la marca. */
+@utility skeleton {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-surface) 74%, transparent),
+      transparent
+    ),
+    color-mix(in srgb, var(--color-primary-50) 46%, var(--color-canvas));
+  background-size:
+    220% 100%,
+    100% 100%;
+  animation: var(--animate-shimmer);
 }
 
 @layer base {
