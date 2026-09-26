@@ -12,6 +12,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 - **Nunca** escribir el nombre comercial de la pasarela de pagos en código, nombres de archivos, commits, ramas, PRs ni README. Usar términos genéricos: `payment gateway`, `pasarela de pagos`, `PaymentProvider`.
 - **Nunca** subir credenciales, llaves o URLs de la pasarela. Solo van en `.env` (ignorado); en el repo solo `.env.example` con valores vacíos.
 - Las llaves privada, de integridad y de eventos viven **solo en el backend**. El frontend solo usa la llave pública.
+- Usar la URL de **Sandbox** del enunciado. Ojo: en las llaves del PDF la `l` minúscula parece una `I` mayúscula; la llave pública correcta lleva `l` (`…TS2lUV8…`). Si la pasarela responde 404/401 con una llave, probar esa variante.
 - Los datos de la tarjeta (número, CVC) nunca llegan al backend ni se guardan en `localStorage`: se tokenizan en el frontend y solo se persiste el token.
 
 ## Stack
@@ -81,7 +82,7 @@ README.md   Único README de la entrega
 - Escribir el test junto con cada caso de uso o componente, no al final.
 - Casos de uso: probar con mocks de los ports, sin base de datos.
 - Datos de prueba en `src/testing/fixtures` (`aProduct()`, `aProductRow()`…) y dobles de los ports en `src/testing/mocks`. Se importan con `@testing/*` **solo desde tests**: el lint lo impide en código de producción. Esa carpeta no entra al build ni a la cobertura.
-- Cada contexto tiene una prueba de su módulo NestJS con Prisma simulado (verifica el cableado de tokens) y pruebas e2e en `test/` contra PostgreSQL real.
+- Cada contexto tiene una prueba de su módulo NestJS con Prisma, `ConfigService` (`mockConfigService`) y `fetch` simulados (verifica el cableado de tokens) y pruebas e2e en `test/` contra PostgreSQL y el Sandbox reales.
 
 ## Git
 
@@ -123,7 +124,7 @@ Gestor de paquetes: **pnpm**. Node 22 o superior. Docker para PostgreSQL.
 | `pnpm build` / `pnpm start:prod` | Compila a `dist/` y arranca la versión compilada |
 | `pnpm test` | Tests unitarios |
 | `pnpm test:cov` | Tests con cobertura; falla si baja del 80% |
-| `pnpm test:e2e` | Tests end-to-end contra PostgreSQL (requiere `docker compose up -d`, `pnpm db:deploy` y `pnpm db:seed`) |
+| `pnpm test:e2e` | Tests end-to-end contra PostgreSQL y el Sandbox de la pasarela (requiere `docker compose up -d`, `pnpm db:deploy`, `pnpm db:seed`, las variables de la pasarela en `.env` e internet) |
 | `pnpm lint` / `pnpm lint:fix` | ESLint (incluye las reglas de arquitectura) |
 | `pnpm typecheck` | Comprobación de tipos |
 | `pnpm format` | Prettier |

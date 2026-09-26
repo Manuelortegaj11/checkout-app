@@ -147,7 +147,12 @@ backend/
 │       │   ├── database.errors.ts      # databaseError(): fallo de BD → DB_QUERY_FAILED
 │       │   ├── repositories/           # <feature>.prisma.repository.ts
 │       │   └── mappers/                # <feature>.prisma.mapper.ts: fila ↔ entidad
-│       ├── payment-gateway/            # payment-gateway.client.ts + mapper de estados
+│       ├── payment-gateway/            # Adapter HTTP de la pasarela
+│       │   ├── payment-gateway.client.ts   # Implementa PaymentGatewayPort (+ PAYMENT_GATEWAY_PROVIDER)
+│       │   ├── payment-gateway.http.ts     # fetch con timeout; todo fallo → PAYMENT_GATEWAY_UNAVAILABLE
+│       │   ├── merchant.response.ts        # Valida la respuesta externa y la traduce al port
+│       │   └── payment-gateway.errors.ts
+│       ├── settings/                   # Adapters de configuración (checkout-settings.adapter.ts)
 │       ├── http/
 │       │   ├── controllers/            # <feature>.controller.ts
 │       │   ├── dtos/                   # <accion>.request.ts · <feature>.response.ts · error.response.ts (Swagger)
@@ -159,6 +164,7 @@ backend/
 │           ├── use-case.provider.ts    # useCaseProvider(): registra casos de uso sin decoradores
 │           ├── persistence/            # persistence.module.ts: PrismaService (global)
 │           ├── health/                 # health.module.ts
+│           ├── payment-gateway/        # payment-gateway.adapters.module.ts: compartido por checkout y transacciones
 │           └── <feature>/
 │               ├── <feature>.repositories.module.ts   # Adapters de persistencia (exporta sus providers)
 │               ├── <feature>.adapters.module.ts       # Otros adapters de salida (p. ej. pasarela)

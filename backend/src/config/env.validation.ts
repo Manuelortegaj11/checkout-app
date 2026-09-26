@@ -1,7 +1,15 @@
 // La conversión implícita de tipos lee la metadata de los decoradores.
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsUrl, Max, Min, validateSync } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsUrl,
+  Matches,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 const NODE_ENVS = ['development', 'test', 'production'] as const;
 
@@ -24,6 +32,32 @@ export class EnvironmentVariables {
     protocols: ['postgresql', 'postgres'],
   })
   DATABASE_URL!: string;
+
+  /** URL base de la API de la pasarela de pagos (Sandbox en esta prueba). */
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
+  PAYMENT_GATEWAY_BASE_URL!: string;
+
+  /** Llave pública del comercio: identifica la tienda ante la pasarela. */
+  @Matches(/^pub_\w+$/, {
+    message: 'PAYMENT_GATEWAY_PUBLIC_KEY must start with pub_',
+  })
+  PAYMENT_GATEWAY_PUBLIC_KEY!: string;
+
+  /** Tiempo máximo de espera de cada petición a la pasarela. */
+  @IsInt()
+  @Min(1_000)
+  @Max(60_000)
+  PAYMENT_GATEWAY_TIMEOUT_MS: number = 10_000;
+
+  /** Tarifa base que se cobra en cada compra, en centavos. */
+  @IsInt()
+  @Min(0)
+  BASE_FEE_IN_CENTS: number = 250_000;
+
+  /** Tarifa de envío, en centavos. */
+  @IsInt()
+  @Min(0)
+  DELIVERY_FEE_IN_CENTS: number = 800_000;
 }
 
 /**

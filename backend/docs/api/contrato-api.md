@@ -268,7 +268,7 @@ stateDiagram-v2
 |--------|------|--------|----------|
 | `GET` | `/api/products` | Inventario | Listar productos con su stock |
 | `GET` | `/api/products/:id` | Inventario | Detalle de un producto |
-| `GET` | `/api/checkout/config` | Transacciones | Tarifas y contratos que el cliente debe aceptar |
+| `GET` | `/api/checkout/config` | Checkout | Tarifas y contratos que el cliente debe aceptar |
 | `POST` | `/api/transactions` | Transacciones, clientes, entregas | Crear la transacción `PENDING` |
 | `POST` | `/api/transactions/:id/payment` | Transacciones | Enviar el pago a la pasarela |
 | `GET` | `/api/transactions/:id` | Transacciones | Consultar (y sincronizar) el estado |
@@ -327,7 +327,7 @@ Todos los productos, **incluidos los agotados** (`stock: 0`), en orden de creaci
 
 ### `GET /api/checkout/config`
 
-Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casillas explícitas antes de pagar.
+Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casillas explícitas antes de pagar. Las tarifas salen de la configuración (`BASE_FEE_IN_CENTS`, `DELIVERY_FEE_IN_CENTS`); los contratos se piden a la pasarela en cada llamada, para entregar siempre su versión vigente.
 
 **200**
 
@@ -338,12 +338,12 @@ Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casilla
   "deliveryFeeInCents": 800000,
   "acceptance": {
     "endUserPolicy": {
-      "token": "eyJhbGciOi...",
-      "url": "https://.../terminos.pdf"
+      "token": "eyJhbGciOiJIUzI1NiJ9...",
+      "url": "https://gateway.example/docs/end-user-policy.pdf"
     },
     "personalDataAuth": {
-      "token": "eyJhbGciOi...",
-      "url": "https://.../datos-personales.pdf"
+      "token": "eyJhbGciOiJIUzI1NiJ9...",
+      "url": "https://gateway.example/docs/personal-data-auth.pdf"
     }
   }
 }
@@ -351,7 +351,7 @@ Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casilla
 
 | Error | HTTP | Cuándo |
 |-------|------|--------|
-| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | La pasarela no responde |
+| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | La pasarela no responde, tarda más que `PAYMENT_GATEWAY_TIMEOUT_MS`, responde con error o con una forma inesperada |
 
 ### `POST /api/transactions`
 
@@ -515,7 +515,9 @@ El frontend decide qué mostrar según el `code`, nunca según el `message`.
 - En el cobro se envían `acceptance_token` y `accept_personal_auth` con los dos tokens aceptados por el cliente.
 - **Estados de la pasarela:** `PENDING`, `APPROVED`, `DECLINED`, `VOIDED`, `ERROR`. Se guardan tal cual en `Transaction.status`.
 - **Seguimiento por consulta (polling), no por webhooks.** Los webhooks se configuran en el panel del comercio, y la cuenta Sandbox es compartida entre candidatos: cambiar su URL de eventos afectaría a otros. El backend consulta hasta ~10 s tras enviar el pago, y la SPA sigue consultando `GET /api/transactions/:id` cada 2 s hasta 60 s.
-- Las rutas exactas de la pasarela se fijan al implementar el adapter, según su documentación.
+- **Contratos (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/merchants/{llavePública}`. De la respuesta se usan `data.presigned_acceptance` (política de uso) y `data.presigned_personal_data_auth` (datos personales), cada uno con `acceptance_token` y `permalink`. La respuesta se valida antes de usarla: si falta un campo, se responde `PAYMENT_GATEWAY_UNAVAILABLE`.
+- **Timeout:** cada petición a la pasarela se corta a los `PAYMENT_GATEWAY_TIMEOUT_MS` (10 s por defecto).
+- **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404.
 
 ### Tarjetas de prueba (Sandbox)
 
@@ -536,10 +538,11 @@ Fecha de vencimiento futura y CVC de 3 dígitos.
 | `PORT` | Puerto de la API |
 | `DATABASE_URL` | Conexión a PostgreSQL |
 | `CORS_ORIGIN` | Origen permitido (URL del frontend) |
-| `BASE_FEE_IN_CENTS` | Tarifa base |
-| `DELIVERY_FEE_IN_CENTS` | Tarifa de envío |
-| `PAYMENT_GATEWAY_BASE_URL` | URL de la API de la pasarela (Sandbox) |
-| `PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública |
+| `BASE_FEE_IN_CENTS` | Tarifa base en centavos (por defecto `250000`) |
+| `DELIVERY_FEE_IN_CENTS` | Tarifa de envío en centavos (por defecto `800000`) |
+| `PAYMENT_GATEWAY_BASE_URL` | URL de la API de la pasarela (Sandbox). Obligatoria, `https` |
+| `PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública. Obligatoria, empieza por `pub_` |
+| `PAYMENT_GATEWAY_TIMEOUT_MS` | Timeout por petición a la pasarela (por defecto `10000`) |
 | `PAYMENT_GATEWAY_PRIVATE_KEY` | Llave privada |
 | `PAYMENT_GATEWAY_INTEGRITY_SECRET` | Secreto de integridad |
 
