@@ -1,4 +1,8 @@
-import { ApiError, errorCodeOf } from '@shared/api/api-error';
+import {
+  ApiError,
+  errorCodeOf,
+  isConnectionError,
+} from '@shared/api/api-error';
 
 describe('ApiError', () => {
   it('es un Error con el code de la API y el status HTTP', () => {
@@ -23,6 +27,22 @@ describe('errorCodeOf', () => {
     'cualquier otro error es UNEXPECTED_ERROR (%p)',
     (error) => {
       expect(errorCodeOf(error)).toBe('UNEXPECTED_ERROR');
+    },
+  );
+});
+
+describe('isConnectionError', () => {
+  it.each(['NETWORK_ERROR', 'TIMEOUT'])(
+    '%s es un fallo de conexión',
+    (code) => {
+      expect(isConnectionError(code)).toBe(true);
+    },
+  );
+
+  it.each(['OUT_OF_STOCK', 'UNEXPECTED_ERROR', null])(
+    '%p no es un fallo de conexión',
+    (code) => {
+      expect(isConnectionError(code)).toBe(false);
     },
   );
 });

@@ -26,3 +26,8 @@ export class ApiError extends Error {
 /** Código de cualquier error, listo para guardarlo en el store (es serializable). */
 export const errorCodeOf = (error: unknown): string =>
   error instanceof ApiError ? error.code : CLIENT_ERROR_CODE.UNEXPECTED_ERROR;
+
+/** El fallo fue de conexión (sin red o sin respuesta a tiempo), no de la API. */
+export const isConnectionError = (code: string | null): boolean =>
+  code === CLIENT_ERROR_CODE.NETWORK_ERROR ||
+  code === CLIENT_ERROR_CODE.TIMEOUT;
