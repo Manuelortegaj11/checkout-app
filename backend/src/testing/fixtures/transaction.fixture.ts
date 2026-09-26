@@ -2,6 +2,7 @@ import type { CreateTransactionInput } from '@application/dtos/transaction/creat
 import {
   Transaction,
   type NewTransaction,
+  type PaymentResult,
 } from '@domain/entities/transaction.entity';
 import { Quantity } from '@domain/value-objects/quantity.vo';
 import { CHECKOUT_FEES } from './checkout.fixture';
@@ -11,6 +12,10 @@ import { PRODUCT_ID } from './product.fixture';
 
 export const TRANSACTION_ID = '01920000-0000-7000-8000-0000000000a1';
 export const CREATED_AT = new Date('2026-09-26T15:04:05.000Z');
+export const PAYMENT_SUBMITTED_AT = new Date('2026-09-26T15:05:00.000Z');
+export const FINALIZED_AT = new Date('2026-09-26T15:05:03.000Z');
+/** Formato real de los ids de la pasarela en el Sandbox. */
+export const GATEWAY_TRANSACTION_ID = '15113-1790424532-59901';
 
 /** Datos para abrir una compra de 1 unidad de 189.900 COP. */
 export const aNewTransaction = (
@@ -45,3 +50,25 @@ export const aCreateTransactionInput = (
   delivery: aDeliveryAddress(),
   ...overrides,
 });
+
+/** Respuesta de la pasarela sobre un cobro; por defecto, aprobado. */
+export const aPaymentResult = (
+  overrides: Partial<PaymentResult> = {},
+): PaymentResult => ({
+  gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+  status: 'APPROVED',
+  statusMessage: null,
+  ...overrides,
+});
+
+/** Transacción con el cobro enviado, a la espera del resultado de la pasarela. */
+export const anAwaitingTransaction = (): Transaction =>
+  aTransaction()
+    .startPayment(PAYMENT_SUBMITTED_AT)
+    .andThen((transaction) =>
+      transaction.applyPaymentResult(
+        aPaymentResult({ status: 'PENDING' }),
+        PAYMENT_SUBMITTED_AT,
+      ),
+    )
+    ._unsafeUnwrap();

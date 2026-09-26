@@ -653,24 +653,43 @@ El controlador inyecta el caso de uso por su clase (`constructor(private readonl
 
 ## El riel del pago
 
-El caso de uso más importante es el que procesa el pago. Tiene una particularidad: si la pasarela falla **después** de crear la transacción en `PENDING`, la transacción no puede quedarse colgada. Se usa `orElse` como **compensación**: registra el fallo y vuelve a emitir el error.
+El caso de uso más delicado es el que cobra (`SubmitPaymentUseCase`). Tiene que garantizar tres cosas: **nunca cobrar dos veces**, **nunca dejar una compra colgada** si la pasarela falla y **descontar el stock una sola vez** aunque varias peticiones liquiden a la vez.
 
 ```mermaid
 flowchart TD
-    A[buscar transacción PENDING] --> B[cobrar en la pasarela]
-    B --> C[resolver estado interno]
-    C --> D{¿APPROVED?}
-    D -- sí --> E["liquidar en una operación atómica:<br/>actualizar transacción · descontar stock · crear entrega"]
-    D -- no --> F[actualizar transacción a DECLINED / ERROR]
-    E --> OK([ok: resultado])
-    F --> OK
-    A -. "err: TRANSACTION_NOT_FOUND / ALREADY_RESOLVED" .-> KO([err])
-    B -. "err: PAYMENT_GATEWAY_UNAVAILABLE" .-> COMP[orElse: marcar transacción ERROR] -.-> KO
-    E -. "err: OUT_OF_STOCK / DB_QUERY_FAILED" .-> KO
+    A["buscar transacción + producto + cliente"] --> B["dominio: startPayment<br/>(PENDING y sin envío previo)"]
+    B --> C["regla: checkStockAvailable"]
+    C --> D["repositorio: claimPaymentSubmission<br/>UPDATE … WHERE payment_submitted_at IS NULL"]
+    D --> E["pasarela: charge<br/>(firma + espera ~10 s el estado final)"]
+    E --> F["recordPaymentResult:<br/>applyPaymentResult + savePaymentResult"]
+    F --> OK([ok: APPROVED / DECLINED / PENDING])
+    A -. "TRANSACTION_NOT_FOUND" .-> KO([err])
+    B -. "TRANSACTION_ALREADY_RESOLVED<br/>PAYMENT_ALREADY_SUBMITTED" .-> KO
+    C -. "OUT_OF_STOCK" .-> KO
+    D -. "PAYMENT_ALREADY_SUBMITTED<br/>(otra petición se adelantó)" .-> KO
+    E -. "PAYMENT_GATEWAY_REJECTED / UNAVAILABLE" .-> COMP["orElse: failPayment → ERROR<br/>(compensación)"] -.-> KO
 ```
 
-- Un pago **rechazado** no es un error del riel: es un resultado de negocio válido (`DECLINED`) y viaja por el riel de éxito.
-- El **inventario solo se descuenta si el pago queda aprobado**, y la actualización de la transacción, el descuento de stock y la creación de la entrega van en la misma transacción de base de datos (`prisma.$transaction`) dentro de un único método del adapter.
+- **Un pago rechazado no es un error del riel.** `DECLINED` es un resultado de negocio válido y viaja por el riel de éxito (HTTP 200, con el motivo en `statusMessage`).
+- **Doble envío imposible.** Primero lo comprueba el dominio (`startPayment`). Después, un `UPDATE` condicional en PostgreSQL (`claimPaymentSubmission`) resuelve la carrera entre dos peticiones simultáneas: solo una encuentra `payment_submitted_at` vacío.
+- **Compensación.** Si la pasarela rechaza o no recibe el cobro, `orElse` deja la compra en `ERROR` (con la entrega cancelada) y devuelve el error original. Si ni siquiera eso se puede guardar, prevalece el error de la pasarela.
+- **Espera acotada.** El adapter consulta el estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS`. Si no llega a un estado final, se responde `PENDING` y la consulta sigue en `GET /api/transactions/:id`.
+
+### Liquidación compartida
+
+`recordPaymentResult` es la regla que comparten el pago y la consulta (`GetTransactionUseCase`). Aplica la respuesta de la pasarela en el dominio (`applyPaymentResult`) y la persiste (`savePaymentResult`). Si el estado es final, eso liquida la compra **en una sola transacción de base de datos**:
+
+| Resultado | Transacción | Entrega | Stock |
+|-----------|-------------|---------|-------|
+| `APPROVED` | `APPROVED` + `finalizedAt` | `ASSIGNED` | `stock - quantity` (solo si `stock >= quantity`) |
+| `DECLINED` / `VOIDED` / `ERROR` | ese estado + motivo | `CANCELLED` | sin cambios |
+| `PENDING` | registra el id del cobro | sin cambios | sin cambios |
+
+La liquidación es **idempotente**: el `UPDATE` está condicionado a `status = 'PENDING'`. Si la SPA consulta dos veces a la vez y ambas encuentran el cobro aprobado, PostgreSQL bloquea la fila, la segunda no encuentra nada que actualizar y el stock se descuenta una sola vez.
+
+### Consulta y sincronización
+
+`GetTransactionUseCase` pregunta a la pasarela solo si hay un cobro pendiente (`pendingPaymentId()`). Si la pasarela no responde, **no es un error**: devuelve la transacción tal como está y la SPA vuelve a consultar.
 
 ## Teoría
 

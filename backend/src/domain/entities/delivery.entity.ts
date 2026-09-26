@@ -62,6 +62,20 @@ export class Delivery {
     return new Delivery({ ...props });
   }
 
+  /**
+   * Resultado de la entrega cuando el pago termina: si se aprobó, el producto
+   * queda asignado al cliente; si no, no hay nada que entregar. Solo la
+   * transacción la llama, al liquidarse (una única vez).
+   */
+  settle(paymentApproved: boolean): Delivery {
+    return new Delivery({
+      ...this.props,
+      status: paymentApproved
+        ? DELIVERY_STATUS.ASSIGNED
+        : DELIVERY_STATUS.CANCELLED,
+    });
+  }
+
   get status(): DeliveryStatus {
     return this.props.status;
   }

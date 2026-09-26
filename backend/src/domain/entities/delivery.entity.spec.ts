@@ -54,6 +54,32 @@ describe('Delivery', () => {
     );
   });
 
+  describe('settle', () => {
+    it('asigna el producto al cliente si el pago se aprobó', () => {
+      const delivery = Delivery.create(aDeliveryAddress()).settle(true);
+
+      expect(delivery.status).toBe('ASSIGNED');
+    });
+
+    it('cancela la entrega si el pago no se aprobó', () => {
+      const delivery = Delivery.create(aDeliveryAddress()).settle(false);
+
+      expect(delivery.status).toBe('CANCELLED');
+    });
+
+    it('conserva la dirección y no modifica la entrega original', () => {
+      const pending = Delivery.create(aDeliveryAddress());
+
+      const assigned = pending.settle(true);
+
+      expect(pending.status).toBe('PENDING_PAYMENT');
+      expect(assigned.toPlainObject()).toEqual({
+        ...pending.toPlainObject(),
+        status: 'ASSIGNED',
+      });
+    });
+  });
+
   it('se reconstruye con los datos persistidos', () => {
     const props: DeliveryProps = {
       ...Delivery.create(aDeliveryAddress()).toPlainObject(),

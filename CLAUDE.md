@@ -11,8 +11,9 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 
 - **Nunca** escribir el nombre comercial de la pasarela de pagos en código, nombres de archivos, commits, ramas, PRs ni README. Usar términos genéricos: `payment gateway`, `pasarela de pagos`, `PaymentProvider`.
 - **Nunca** subir credenciales, llaves o URLs de la pasarela. Solo van en `.env` (ignorado); en el repo solo `.env.example` con valores vacíos.
-- Las llaves privada, de integridad y de eventos viven **solo en el backend**. El frontend solo usa la llave pública.
-- Usar la URL de **Sandbox** del enunciado. Ojo: en las llaves del PDF la `l` minúscula parece una `I` mayúscula; la llave pública correcta lleva `l` (`…TS2lUV8…`). Si la pasarela responde 404/401 con una llave, probar esa variante.
+- El secreto de integridad vive **solo en el backend** (firma cada cobro). El frontend solo usa la llave pública. El backend **no usa la llave privada**: está verificado que la pasarela cobra con llave pública + firma y que la consulta del estado es pública.
+- Usar la URL de **Sandbox** del enunciado. Ojo: en las llaves del PDF `l` e `I` se confunden. La llave pública correcta lleva `l` (`…TS2lUV8…`); el secreto de integridad lleva `I` mayúscula donde la imagen muestra `l` (posiciones 21 y 44). Si la pasarela responde 404/401 o "La firma es inválida", probar esas variantes.
+- Los **tokens de aceptación son de un solo uso** (se consumen aunque el cobro falle): cada cobro usa los de un `GET /api/checkout/config` reciente.
 - Los datos de la tarjeta (número, CVC) nunca llegan al backend ni se guardan en `localStorage`: se tokenizan en el frontend y solo se persiste el token.
 
 ## Stack
@@ -85,7 +86,8 @@ README.md   Único README de la entrega
 - Escribir el test junto con cada caso de uso o componente, no al final.
 - Casos de uso: probar con mocks de los ports, sin base de datos.
 - Datos de prueba en `src/testing/fixtures` (`aProduct()`, `aProductRow()`…) y dobles de los ports en `src/testing/mocks`. Se importan con `@testing/*` **solo desde tests**: el lint lo impide en código de producción. Esa carpeta no entra al build ni a la cobertura.
-- Cada contexto tiene una prueba de su módulo NestJS con Prisma, `ConfigService` (`mockConfigService`) y `fetch` simulados (verifica el cableado de tokens) y pruebas e2e en `test/` contra PostgreSQL y el Sandbox reales.
+- Cada contexto tiene una prueba de su módulo NestJS con Prisma, `ConfigService` (`mockConfigService`) y `fetch` simulados (verifica el cableado de tokens) y pruebas e2e en `test/` contra PostgreSQL y el Sandbox reales. Las e2e de pagos cobran de verdad en el Sandbox: restauran el stock y borran sus datos al terminar.
+- Antes de un commit, comprobar el **código de salida real** de las pruebas: un `| grep` lo oculta. Usar `set -o pipefail` o ejecutar las pruebas sin tubería.
 
 ## Git
 
@@ -97,6 +99,7 @@ README.md   Único README de la entrega
   - Tipos: `feat`, `fix`, `test`, `refactor`, `chore`, `docs`.
   - Alcances: `frontend`, `backend`, `prisma`, `deploy`, `readme`, `claude`.
 - Commits pequeños y frecuentes: el historial debe mostrar el progreso.
+- **Cada commit compila y pasa sus pruebas.** Si un port gana un método, el mismo commit incluye su adapter, su doble de prueba y sus tests; los casos de uso llegan en commits posteriores.
 - PRs se fusionan con **merge commit**, no squash.
 - No añadir el trailer `Co-Authored-By` en los commits.
 

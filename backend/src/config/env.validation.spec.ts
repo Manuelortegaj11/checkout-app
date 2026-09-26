@@ -6,6 +6,7 @@ const REQUIRED = {
     'postgresql://checkout:checkout@localhost:5433/checkout?schema=public',
   PAYMENT_GATEWAY_BASE_URL: 'https://gateway.test/v1',
   PAYMENT_GATEWAY_PUBLIC_KEY: 'pub_test_abc123',
+  PAYMENT_GATEWAY_INTEGRITY_SECRET: 'test_integrity_0123456789abcdef',
 };
 
 describe('validateEnv', () => {
@@ -18,6 +19,8 @@ describe('validateEnv', () => {
       PORT: 3001,
       CORS_ORIGIN: 'http://localhost:3000',
       PAYMENT_GATEWAY_TIMEOUT_MS: 10_000,
+      PAYMENT_GATEWAY_POLL_TIMEOUT_MS: 10_000,
+      PAYMENT_GATEWAY_POLL_INTERVAL_MS: 1_000,
       BASE_FEE_IN_CENTS: 250_000,
       DELIVERY_FEE_IN_CENTS: 800_000,
     });
@@ -74,6 +77,18 @@ describe('validateEnv', () => {
       'PAYMENT_GATEWAY_PUBLIC_KEY',
     ],
     [{ PAYMENT_GATEWAY_TIMEOUT_MS: '100' }, 'PAYMENT_GATEWAY_TIMEOUT_MS'],
+    [
+      { PAYMENT_GATEWAY_INTEGRITY_SECRET: 'corto' },
+      'PAYMENT_GATEWAY_INTEGRITY_SECRET',
+    ],
+    [
+      { PAYMENT_GATEWAY_POLL_TIMEOUT_MS: '60000' },
+      'PAYMENT_GATEWAY_POLL_TIMEOUT_MS',
+    ],
+    [
+      { PAYMENT_GATEWAY_POLL_INTERVAL_MS: '10' },
+      'PAYMENT_GATEWAY_POLL_INTERVAL_MS',
+    ],
     [{ BASE_FEE_IN_CENTS: '-1' }, 'BASE_FEE_IN_CENTS'],
     [{ DELIVERY_FEE_IN_CENTS: '10.5' }, 'DELIVERY_FEE_IN_CENTS'],
   ])('rechaza %j indicando la variable inválida', (config, variable) => {

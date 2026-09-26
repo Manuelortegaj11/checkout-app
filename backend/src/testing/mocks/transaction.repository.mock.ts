@@ -3,4 +3,7 @@ import type { TransactionRepositoryPort } from '@application/ports/transaction.r
 export const mockTransactionRepository =
   (): jest.Mocked<TransactionRepositoryPort> => ({
     create: jest.fn(),
+    findViewById: jest.fn(),
+    claimPaymentSubmission: jest.fn(),
+    savePaymentResult: jest.fn(),
   });

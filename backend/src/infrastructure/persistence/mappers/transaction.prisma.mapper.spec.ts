@@ -5,7 +5,18 @@ import {
   CREATED_AT,
   TRANSACTION_ID,
 } from '@testing/fixtures/transaction.fixture';
-import { toTransactionCreateData } from './transaction.prisma.mapper';
+import { aCustomerProps } from '@testing/fixtures/customer.fixture';
+import { aProductProps } from '@testing/fixtures/product.fixture';
+import { aTransactionViewRow } from '@testing/fixtures/transaction-row.fixture';
+import {
+  anAwaitingTransaction,
+  aPaymentResult,
+  FINALIZED_AT,
+} from '@testing/fixtures/transaction.fixture';
+import {
+  toTransactionCreateData,
+  toTransactionView,
+} from './transaction.prisma.mapper';
 
 describe('toTransactionCreateData', () => {
   it('aplana los montos y anida la entrega para crearlas juntas', () => {
@@ -39,6 +50,45 @@ describe('toTransactionCreateData', () => {
           postalCode: '050021',
         },
       },
+    });
+  });
+});
+
+describe('toTransactionView', () => {
+  it('reconstruye la transacción, su producto y su cliente', () => {
+    const transaction = aTransaction();
+
+    const view = toTransactionView(
+      aTransactionViewRow(transaction),
+    )._unsafeUnwrap();
+
+    expect(view.transaction.toPlainObject()).toEqual(
+      transaction.toPlainObject(),
+    );
+    expect(view.product.toPlainObject()).toEqual(aProductProps());
+    expect(view.customer.toPlainObject()).toEqual(aCustomerProps());
+  });
+
+  it('conserva el resultado del pago y el estado de la entrega', () => {
+    const approved = anAwaitingTransaction()
+      .applyPaymentResult(aPaymentResult(), FINALIZED_AT)
+      ._unsafeUnwrap();
+
+    const view = toTransactionView(
+      aTransactionViewRow(approved),
+    )._unsafeUnwrap();
+
+    expect(view.transaction.toPlainObject()).toEqual(approved.toPlainObject());
+  });
+
+  it('falla con DB_QUERY_FAILED si la transacción no tiene entrega', () => {
+    const row = { ...aTransactionViewRow(), delivery: null };
+
+    const result = toTransactionView(row);
+
+    expect(result._unsafeUnwrapErr()).toMatchObject({
+      code: 'DB_QUERY_FAILED',
+      cause: new Error(`Transaction ${row.id} has no delivery`),
     });
   });
 });

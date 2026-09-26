@@ -43,11 +43,30 @@ export class EnvironmentVariables {
   })
   PAYMENT_GATEWAY_PUBLIC_KEY!: string;
 
+  /** Secreto de integridad: firma cada cobro. Solo lo conoce el backend. */
+  @Matches(/^\S{16,}$/, {
+    message:
+      'PAYMENT_GATEWAY_INTEGRITY_SECRET must be at least 16 characters without spaces',
+  })
+  PAYMENT_GATEWAY_INTEGRITY_SECRET!: string;
+
   /** Tiempo máximo de espera de cada petición a la pasarela. */
   @IsInt()
   @Min(1_000)
   @Max(60_000)
   PAYMENT_GATEWAY_TIMEOUT_MS: number = 10_000;
+
+  /** Cuánto espera el cobro un resultado final antes de responder PENDING. */
+  @IsInt()
+  @Min(0)
+  @Max(30_000)
+  PAYMENT_GATEWAY_POLL_TIMEOUT_MS: number = 10_000;
+
+  /** Cada cuánto se consulta el estado mientras se espera. */
+  @IsInt()
+  @Min(250)
+  @Max(10_000)
+  PAYMENT_GATEWAY_POLL_INTERVAL_MS: number = 1_000;
 
   /** Tarifa base que se cobra en cada compra, en centavos. */
   @IsInt()
