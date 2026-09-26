@@ -38,6 +38,8 @@ Las pruebas viven en `tests/`, fuera de `src/`: cada archivo tiene la suya en `t
 - Flujo unidireccional: vista → `dispatch` → thunk → servicio → reducer → selector → vista.
 - `redux-persist` solo sobre `checkout`. Los productos se vuelven a pedir siempre.
 - **Nunca** guardar en el store ni en `localStorage` el número de tarjeta ni el CVC. Viven en el estado local del formulario y, al tokenizar, al store llegan solo `token`, `brand` y `last4`.
+- **Nunca** pasar datos de la tarjeta a un thunk: `createAsyncThunk` guarda su argumento en `meta.arg` de cada acción. La tokenización va en un hook (`useCardTokenization`) que despacha solo el resultado.
+- La persistencia usa `store/local-storage.ts`, no `redux-persist/lib/storage` (CommonJS con `exports.default`: Vite lo importa mal). Las pruebas que precargan el checkout usan `aCheckoutState()`, que incluye `_persist`.
 - Al rehidratar en `PROCESSING` con `transactionId`, reanudar la consulta de estado; nunca volver a cobrar.
 
 ## Reglas de UI
@@ -57,7 +59,7 @@ Las pruebas viven en `tests/`, fuera de `src/`: cada archivo tiene la suya en `t
 Ejecuta desde `frontend/` y corrige lo que aparezca:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test:cov
+pnpm typecheck && pnpm lint && pnpm test:cov && pnpm test:integration
 ```
 
 `pnpm lint` ya comprueba las reglas de la arquitectura (capas, componentes sin `shared/api`, `import.meta.env` solo en `env.ts`, `fetch` solo en `http-client.ts`, nada de `cardNumber` ni `cvc` en el store) y falla con cualquier aviso: si falla, corrige el código, no desactives la regla. `pnpm test:cov` falla si la cobertura baja del 80%. Ejecuta las pruebas sin `| grep` o con `set -o pipefail` para no ocultar el código de salida.

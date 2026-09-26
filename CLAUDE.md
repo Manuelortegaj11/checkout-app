@@ -40,9 +40,10 @@ README.md   Único README de la entrega
 - Estructura en `frontend/src/`: `main.tsx` → `app/` (solo composición) → `features/` (`products`, `checkout`, `transaction`) → `shared/` (`ui`, `lib`, `api`, `config`), más `store/`. `shared/` no importa nada de `features/`, `store/` ni `app/`.
 - **Sin router:** la pantalla visible se deriva solo de `checkout.step`, así una URL nunca contradice el estado persistido.
 - La SPA llama siempre a la API en `/api`, en su mismo origen: en local la reenvía el proxy de Vite y en producción Nginx. Ni CORS ni URL del backend en el bundle.
-- Variables de entorno `VITE_*` (son públicas: van dentro del bundle). Solo se leen en `shared/config/env.ts`.
+- La SPA no necesita variables de entorno: la URL de la pasarela y la llave pública llegan en `GET /api/checkout/config`. Si alguna vez hiciera falta una `VITE_*` (es pública: va en el bundle), solo se leería en `shared/config/env.ts`.
+- La tarjeta se tokeniza con el hook `useCardTokenization`, **nunca con un thunk**: `createAsyncThunk` guarda su argumento en `meta.arg` y el número quedaría en Redux DevTools. Al store llegan solo `token`, `brand` y `last4`.
 - Alias por capa: `@app/*`, `@features/*`, `@shared/*`, `@store/*` y `@testing/*` (solo en pruebas). Nunca `../../`.
-- ESLint hace cumplir la arquitectura: falla si `shared` importa `features`, `store` o `app`; si un componente importa `shared/api`; si se usa `import.meta.env` fuera de `shared/config/env.ts`, `fetch` fuera de `shared/api/http-client.ts` o `localStorage` directamente; si `cardNumber` o `cvc` aparecen en el store; o con `dangerouslySetInnerHTML`. No desactivar esas reglas; corregir el código.
+- ESLint hace cumplir la arquitectura: falla si `shared` importa `features`, `store` o `app`; si un componente importa `shared/api`; si se usa `import.meta.env` fuera de `shared/config/env.ts`, `fetch` fuera de `shared/api/http-client.ts` o `localStorage` fuera de `store/local-storage.ts` (el motor de redux-persist); si `cardNumber` o `cvc` aparecen en el store; o con `dangerouslySetInnerHTML`. No desactivar esas reglas; corregir el código.
 - Tests con **Jest** (`ts-jest` + `jsdom`), no con Vitest: el enunciado exige Jest. Viven en `frontend/tests/` con el mismo esquema que el backend: `unit/` espejo de `src/`, `integration/` para los flujos del checkout con el store real y `support/`.
 - Estado global con Redux Toolkit siguiendo Flux: vista → `dispatch` → thunk → servicio (`shared/api`) → reducer → selector → vista. Los componentes nunca llaman a `fetch`.
 - El checkout es una máquina de pasos en el store (`PRODUCT` → `PAYMENT_FORM` → `SUMMARY` → `PROCESSING` → `RESULT` → `PRODUCT`). `redux-persist` solo sobre `checkout`, para sobrevivir a un refresh; nunca se persisten el número de tarjeta ni el CVC.
@@ -166,9 +167,11 @@ Antes de dar una tarea del backend por terminada: `pnpm typecheck && pnpm lint &
 | `pnpm build` / `pnpm preview` | Comprueba tipos, compila a `dist/` y sirve esa versión en `localhost:3000` |
 | `pnpm test` / `pnpm test:unit` | Pruebas unitarias (`tests/unit`) |
 | `pnpm test:cov` | Pruebas unitarias con cobertura; falla si baja del 80% |
+| `pnpm test:integration` | Pruebas de integración (`tests/integration`): flujos del checkout con el store y la persistencia reales, solo la red simulada |
+| `pnpm test:all` | Pruebas unitarias y de integración |
 | `pnpm test:watch` | Pruebas unitarias en modo observación |
 | `pnpm lint` / `pnpm lint:fix` | ESLint (incluye las reglas de arquitectura); falla con cualquier aviso |
 | `pnpm typecheck` | Comprobación de tipos del código y de las pruebas |
 | `pnpm format` | Prettier (también ordena las clases de Tailwind) |
 
-Antes de dar una tarea del frontend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov`.
+Antes de dar una tarea del frontend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov && pnpm test:integration`.
