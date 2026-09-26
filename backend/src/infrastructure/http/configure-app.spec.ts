@@ -4,8 +4,8 @@ import { Test } from '@nestjs/testing';
 import { Type } from 'class-transformer';
 import { IsEmail, IsInt, Min, ValidateNested } from 'class-validator';
 import request from 'supertest';
-import { appError } from '../../shared/errors/app-error';
-import { errAsync } from '../../shared/result';
+import { appError } from '@shared/errors/app-error';
+import { errAsync } from '@shared/result';
 import { configureApp } from './configure-app';
 import { unwrapOrThrowHttp } from './errors/app-error.http-mapper';
 

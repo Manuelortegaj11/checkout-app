@@ -9,6 +9,11 @@ const config: Config = {
   },
   testEnvironment: 'node',
   clearMocks: true,
+  // Alias de tsconfig.json (paths).
+  moduleNameMapper: {
+    '^@(shared|domain|application|infrastructure|config)/(.*)$':
+      '<rootDir>/$1/$2',
+  },
   collectCoverageFrom: [
     '**/*.ts',
     // Solo arranque y cableado de NestJS: sin lógica que probar.

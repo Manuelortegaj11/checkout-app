@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Logger } from '@nestjs/common';
-import type { AppError, AppErrorType } from '../../../shared/errors/app-error';
-import type { Result } from '../../../shared/result';
+import type { AppError, AppErrorType } from '@shared/errors/app-error';
+import type { Result } from '@shared/result';
 import { describeError } from './describe-error';
 
 const STATUS_BY_TYPE: Record<AppErrorType, HttpStatus> = {

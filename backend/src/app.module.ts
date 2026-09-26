@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { validateEnv } from './config/env.validation';
-import { HealthModule } from './infrastructure/modules/health.module';
+import { validateEnv } from '@config/env.validation';
+import { HealthModule } from '@infrastructure/modules/health/health.module';
 
 @Module({
   imports: [
