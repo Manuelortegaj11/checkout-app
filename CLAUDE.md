@@ -19,7 +19,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 | Capa | Tecnología |
 |---|---|
 | Frontend | Next.js + TypeScript como **SPA** (`output: 'export'`), Redux Toolkit + redux-persist, Tailwind CSS |
-| Backend | NestJS 11 + TypeScript (CommonJS), Prisma, PostgreSQL, neverthrow |
+| Backend | NestJS 11 + TypeScript (CommonJS), Prisma 7, PostgreSQL 17 (Docker), neverthrow |
 | Tests | Jest en ambos (+ React Testing Library en el frontend) |
 | Deploy | VPS o EC2: Nginx (estático + proxy `/api`), PM2, HTTPS con Certbot |
 
@@ -64,6 +64,14 @@ README.md   Único README de la entrega
 - ESLint hace cumplir la arquitectura: falla si `shared`, `domain` o `application` importan frameworks, `config` o capas exteriores (por alias o por ruta relativa), si usan `throw`, o si un import sube más de un nivel. No desactivar esas reglas; corregir el código.
 - Contrato de la API y modelo de datos: `backend/docs/api/contrato-api.md`.
 
+## Base de datos (Prisma 7 + PostgreSQL 17)
+
+- **Migraciones solo con los comandos de Prisma:** editar `backend/prisma/schema.prisma` y ejecutar `pnpm db:migrate --name <cambio_en_snake_case>`. **Prohibido** escribir o editar archivos de migración SQL a mano. En producción: `pnpm db:deploy`.
+- **Datos iniciales solo en el seed** (`backend/prisma/seed.ts`, `pnpm db:seed`), nunca en una migración. El seed es idempotente: crea lo que falta y no modifica lo existente.
+- **Nombres en inglés.** Prisma: modelos en `PascalCase` singular y campos en `camelCase`. PostgreSQL: tablas en `snake_case` plural (`@@map("products")`) y columnas en `snake_case` (`@map("price_in_cents")`). Enums en `PascalCase` con valores `UPPER_SNAKE_CASE`. Dinero siempre en centavos y enteros (`*InCents`).
+- El cliente se genera en `backend/src/infrastructure/persistence/generated/` (ignorado por Git; se regenera con `pnpm install`). Solo lo importa la infraestructura, a través de `PrismaService`.
+- Prisma 7 bloquea las operaciones destructivas (`migrate reset`) si las ejecuta un agente de IA: pedir confirmación explícita al usuario y no intentar saltarse el bloqueo.
+
 ## Tests
 
 - Jest obligatorio en frontend y backend con **cobertura > 80%** en cada uno.
@@ -85,13 +93,27 @@ README.md   Único README de la entrega
 
 ## Comandos
 
-Gestor de paquetes: **pnpm**. Node 22 o superior.
+Gestor de paquetes: **pnpm**. Node 22 o superior. Docker para PostgreSQL.
+
+### Base de datos (desde la raíz)
+
+| Comando | Qué hace |
+|---|---|
+| `docker compose up -d` | Levanta PostgreSQL 17 en `localhost:5433` |
+| `docker compose down` | Lo detiene (los datos se conservan) |
+| `docker compose down -v` | Lo detiene y borra los datos |
 
 ### Backend (desde `backend/`)
 
 | Comando | Qué hace |
 |---|---|
-| `pnpm install` | Instala dependencias |
+| `pnpm install` | Instala dependencias y genera el cliente de Prisma |
+| `pnpm db:migrate --name <cambio>` | Crea y aplica una migración a partir de `schema.prisma` (desarrollo) |
+| `pnpm db:deploy` | Aplica las migraciones pendientes (producción) |
+| `pnpm db:seed` | Carga los productos iniciales |
+| `pnpm db:reset` | Borra la base de desarrollo, reaplica las migraciones y el seed (pide confirmación) |
+| `pnpm db:status` | Estado de las migraciones |
+| `pnpm db:studio` | Explorador visual de la base de datos |
 | `pnpm start:dev` | API en modo desarrollo con recarga (`http://localhost:3001/api`) |
 | `pnpm build` / `pnpm start:prod` | Compila a `dist/` y arranca la versión compilada |
 | `pnpm test` | Tests unitarios |
@@ -102,6 +124,8 @@ Gestor de paquetes: **pnpm**. Node 22 o superior.
 | `pnpm format` | Prettier |
 
 Swagger: `http://localhost:3001/api/docs`. Configuración: copiar `.env.example` a `.env`.
+
+Primera vez: `docker compose up -d` (raíz) → `pnpm install` → `pnpm db:deploy` → `pnpm db:seed` → `pnpm start:dev` (en `backend/`).
 
 Antes de dar una tarea del backend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov`.
 
