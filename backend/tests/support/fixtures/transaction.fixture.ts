@@ -1,14 +1,17 @@
 import type { CreateTransactionInput } from '@application/dtos/transaction/create-transaction.input';
+import type { SubmitPaymentInput } from '@application/dtos/transaction/submit-payment.input';
+import type { TransactionOutput } from '@application/dtos/transaction/transaction.output';
+import { toTransactionOutput } from '@application/use-cases/transaction/transaction.mapper';
 import {
   Transaction,
   type NewTransaction,
   type PaymentResult,
 } from '@domain/entities/transaction.entity';
 import { Quantity } from '@domain/value-objects/quantity.vo';
-import { CHECKOUT_FEES } from './checkout.fixture';
-import { CUSTOMER_ID } from './customer.fixture';
+import { anAcceptanceContracts, CHECKOUT_FEES } from './checkout.fixture';
+import { aCustomer, CUSTOMER_ID } from './customer.fixture';
 import { aDeliveryAddress } from './delivery.fixture';
-import { PRODUCT_ID } from './product.fixture';
+import { aProduct, PRODUCT_ID } from './product.fixture';
 
 export const TRANSACTION_ID = '01920000-0000-7000-8000-0000000000a1';
 export const CREATED_AT = new Date('2026-09-26T15:04:05.000Z');
@@ -50,6 +53,35 @@ export const aCreateTransactionInput = (
   delivery: aDeliveryAddress(),
   ...overrides,
 });
+
+/** La transacción del fixture, recién creada, tal como la devuelven los casos de uso. */
+export const aTransactionOutput = (
+  overrides: Partial<TransactionOutput> = {},
+): TransactionOutput => ({
+  ...toTransactionOutput({
+    transaction: aTransaction(),
+    product: aProduct(),
+    customer: aCustomer(),
+  }),
+  ...overrides,
+});
+
+export type SubmitPaymentBody = Omit<SubmitPaymentInput, 'transactionId'>;
+
+/** Cuerpo del cobro: tarjeta tokenizada del Sandbox, cuotas y contratos aceptados. */
+export const aSubmitPaymentBody = (
+  overrides: Partial<SubmitPaymentBody> = {},
+): SubmitPaymentBody => {
+  const { endUserPolicy, personalDataAuth } = anAcceptanceContracts();
+
+  return {
+    cardToken: 'tok_stagtest_5113_abc',
+    installments: 1,
+    acceptanceToken: endUserPolicy.token,
+    personalDataAuthToken: personalDataAuth.token,
+    ...overrides,
+  };
+};
 
 /** Respuesta de la pasarela sobre un cobro; por defecto, aprobado. */
 export const aPaymentResult = (

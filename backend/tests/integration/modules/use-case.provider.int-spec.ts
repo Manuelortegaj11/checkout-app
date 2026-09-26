@@ -24,7 +24,7 @@ class GreetAtUseCase {
 }
 
 describe('useCaseProvider', () => {
-  it('construye el caso de uso inyectando sus ports en orden', async () => {
+  it('NestJS resuelve los ports por su token y construye el caso de uso', async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         { provide: CLOCK, useValue: { now: () => '10:00' } },
@@ -40,14 +40,5 @@ describe('useCaseProvider', () => {
 
     expect(useCase).toBeInstanceOf(GreetAtUseCase);
     expect(useCase.execute('Ana')).toBe('Hola Ana (10:00)');
-  });
-
-  it('usa la clase del caso de uso como token', () => {
-    const provider = useCaseProvider(GreetAtUseCase, [CLOCK, GREETER]);
-
-    expect(provider).toMatchObject({
-      provide: GreetAtUseCase,
-      inject: [CLOCK, GREETER],
-    });
   });
 });

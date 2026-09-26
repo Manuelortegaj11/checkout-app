@@ -1,3 +1,5 @@
+import type { ProductOutput } from '@application/dtos/product/product.output';
+import { toProductOutput } from '@application/use-cases/product/product.mapper';
 import { Product, type ProductProps } from '@domain/entities/product.entity';
 
 export const PRODUCT_ID = '01920000-0000-7000-8000-000000000001';
@@ -18,3 +20,8 @@ export const aProductProps = (
 
 export const aProduct = (overrides: Partial<ProductProps> = {}): Product =>
   Product.reconstitute(aProductProps(overrides));
+
+/** El producto del fixture tal como lo devuelven los casos de uso. */
+export const aProductOutput = (
+  overrides: Partial<ProductProps> = {},
+): ProductOutput => toProductOutput(aProduct(overrides));
