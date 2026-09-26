@@ -60,12 +60,18 @@ describe('CheckoutModule', () => {
   });
 
   it('GET /api/checkout/config recorre toda la cadena hasta la pasarela', async () => {
-    await request(app.getHttpServer()).get('/api/checkout/config').expect(200, {
-      currency: 'COP',
-      baseFeeInCents: 250_000,
-      deliveryFeeInCents: 800_000,
-      acceptance: anAcceptanceContracts(),
-    });
+    await request(app.getHttpServer())
+      .get('/api/checkout/config')
+      .expect(200, {
+        currency: 'COP',
+        baseFeeInCents: 250_000,
+        deliveryFeeInCents: 800_000,
+        acceptance: anAcceptanceContracts(),
+        paymentGateway: {
+          baseUrl: 'https://gateway.test/v1',
+          publicKey: 'pub_test_abc123',
+        },
+      });
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://gateway.test/v1/merchants/pub_test_abc123',

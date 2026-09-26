@@ -18,6 +18,8 @@
     "typecheck": "tsc -b",
     "test": "jest --selectProjects unit",
     "test:unit": "jest --selectProjects unit",
+    "test:integration": "jest --selectProjects integration",
+    "test:all": "jest",
     "test:cov": "jest --selectProjects unit --coverage",
     "test:watch": "jest --selectProjects unit --watch"
   },
@@ -27,7 +29,8 @@
     "lucide-react": "^1.48.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-redux": "^9.3.0"
+    "react-redux": "^9.3.0",
+    "redux-persist": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

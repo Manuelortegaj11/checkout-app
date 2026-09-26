@@ -7,8 +7,9 @@ import type { AppError } from '@shared/errors/app-error';
 import type { ResultAsync } from '@shared/result';
 
 /**
- * Configuración del checkout: tarifas vigentes y contratos que el cliente
- * debe aceptar. Falla si la pasarela no entrega los contratos.
+ * Configuración del checkout: tarifas vigentes, contratos que el cliente debe
+ * aceptar y datos públicos de la pasarela para tokenizar la tarjeta. Falla si
+ * la pasarela no entrega los contratos.
  */
 export class GetCheckoutConfigUseCase implements UseCase<
   void,
@@ -27,6 +28,7 @@ export class GetCheckoutConfigUseCase implements UseCase<
       baseFeeInCents,
       deliveryFeeInCents,
       acceptance,
+      paymentGateway: this.paymentGateway.getPublicSettings(),
     }));
   }
 }

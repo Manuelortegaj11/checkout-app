@@ -2,19 +2,19 @@ import { render, screen } from '@testing-library/react';
 import { Providers } from '@app/Providers';
 import { useAppSelector } from '@store/hooks';
 
-function ProductsStatus() {
-  const status = useAppSelector((state) => state.products.status);
-  return <p>{status}</p>;
+function CheckoutStep() {
+  const step = useAppSelector((state) => state.checkout.step);
+  return <p>{step}</p>;
 }
 
 describe('Providers', () => {
-  it('da acceso al store de la aplicación', () => {
+  it('da acceso al store una vez recuperado el checkout de localStorage', async () => {
     render(
       <Providers>
-        <ProductsStatus />
+        <CheckoutStep />
       </Providers>,
     );
 
-    expect(screen.getByText('idle')).toBeInTheDocument();
+    expect(await screen.findByText('PRODUCT')).toBeInTheDocument();
   });
 });

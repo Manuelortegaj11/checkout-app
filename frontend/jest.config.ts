@@ -4,10 +4,10 @@ import type { Config } from 'jest';
  * Una sola configuración con un proyecto por nivel de prueba, como en el
  * backend. Cada script elige el suyo con `--selectProjects` (ver package.json):
  *
- * - unit  tests/unit/**  *.spec.ts(x)  una pieza aislada, espejo de src/
- *
- * Las pruebas de integración (flujos del checkout con el store real) tendrán
- * su proyecto cuando exista el primer flujo.
+ * - unit         tests/unit/**         *.spec.ts(x)    una pieza aislada, espejo de src/
+ * - integration  tests/integration/**  *.int-spec.tsx  un flujo del checkout con el store,
+ *                                                       la persistencia y los servicios reales;
+ *                                                       solo la red es simulada
  */
 const shared = {
   rootDir: '.',
@@ -33,6 +33,15 @@ const config: Config = {
       ...shared,
       displayName: 'unit',
       testMatch: ['<rootDir>/tests/unit/**/*.spec.{ts,tsx}'],
+    },
+    {
+      ...shared,
+      displayName: 'integration',
+      testMatch: ['<rootDir>/tests/integration/**/*.int-spec.tsx'],
+      setupFilesAfterEnv: [
+        ...shared.setupFilesAfterEnv,
+        '<rootDir>/tests/support/setup-integration.ts',
+      ],
     },
   ],
   // `pnpm test:cov` mide la cobertura con las pruebas unitarias.

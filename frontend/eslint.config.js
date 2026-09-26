@@ -181,6 +181,13 @@ export default tseslint.config(
     },
   },
   {
+    // Único punto que toca localStorage: el motor de redux-persist.
+    files: ['src/store/local-storage.ts'],
+    rules: {
+      'no-restricted-globals': ['error', FETCH],
+    },
+  },
+  {
     // Pruebas y utilidades de prueba: pueden importar @testing y montar dobles.
     files: ['tests/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser, ...globals.jest } },

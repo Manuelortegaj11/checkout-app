@@ -1,11 +1,28 @@
+import {
+  CHECKOUT_STEP,
+  PayWithCardButton,
+  PaymentModal,
+  selectCheckoutStep,
+} from '@features/checkout';
 import { ProductCatalog } from '@features/products';
+import { useAppSelector } from '@store/hooks';
 import { AppLayout } from './AppLayout';
 
-/** Raíz de la SPA: compone la pantalla del checkout que corresponde. Por ahora, el catálogo. */
+/**
+ * Raíz de la SPA: la pantalla visible sale solo del paso del checkout
+ * guardado en el store, así un refresh vuelve exactamente al mismo punto.
+ */
 export function App() {
+  const step = useAppSelector(selectCheckoutStep);
+
   return (
     <AppLayout>
-      <ProductCatalog />
+      <ProductCatalog
+        renderProductAction={(product) => (
+          <PayWithCardButton product={product} />
+        )}
+      />
+      {step === CHECKOUT_STEP.PAYMENT_FORM && <PaymentModal />}
     </AppLayout>
   );
 }

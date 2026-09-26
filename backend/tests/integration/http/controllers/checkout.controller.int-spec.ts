@@ -5,7 +5,7 @@ import request from 'supertest';
 import { GetCheckoutConfigUseCase } from '@application/use-cases/checkout/get-checkout-config.use-case';
 import { paymentGatewayUnavailable } from '@infrastructure/payment-gateway/payment-gateway.errors';
 import { errAsync, okAsync } from '@shared/result';
-import { anAcceptanceContracts } from '@testing/fixtures/checkout.fixture';
+import { aCheckoutConfigOutput } from '@testing/fixtures/checkout.fixture';
 import { configureApp } from '@infrastructure/http/configure-app';
 import { CheckoutController } from '@infrastructure/http/controllers/checkout.controller';
 
@@ -33,13 +33,8 @@ describe('CheckoutController', () => {
   });
 
   describe('GET /api/checkout/config', () => {
-    it('responde 200 con tarifas y contratos', async () => {
-      const config = {
-        currency: 'COP',
-        baseFeeInCents: 250_000,
-        deliveryFeeInCents: 800_000,
-        acceptance: anAcceptanceContracts(),
-      };
+    it('responde 200 con tarifas, contratos y los datos públicos de la pasarela', async () => {
+      const config = aCheckoutConfigOutput();
       getCheckoutConfig.execute.mockReturnValue(okAsync(config));
 
       await request(app.getHttpServer())

@@ -94,4 +94,21 @@ describe('ProductCatalog', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('Cargando productos…')).not.toBeInTheDocument();
   });
+
+  it('pone en cada tarjeta la acción que le pasa quien compone la pantalla', async () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue(inventory);
+
+    renderWithStore(
+      <ProductCatalog
+        renderProductAction={(product) => (
+          <button type="button">Comprar {product.name}</button>
+        )}
+      />,
+    );
+
+    expect(
+      await screen.findByRole('button', { name: 'Comprar Cámara web 4K' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Comprar/ })).toHaveLength(2);
+  });
 });

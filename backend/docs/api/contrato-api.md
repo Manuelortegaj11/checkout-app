@@ -327,7 +327,9 @@ Todos los productos, **incluidos los agotados** (`stock: 0`), en orden de creaci
 
 ### `GET /api/checkout/config`
 
-Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casillas explícitas antes de pagar. Las tarifas salen de la configuración (`BASE_FEE_IN_CENTS`, `DELIVERY_FEE_IN_CENTS`); los contratos se piden a la pasarela en cada llamada, para entregar siempre su versión vigente.
+Devuelve las tarifas, los dos contratos que el cliente debe aceptar con casillas explícitas antes de pagar y los datos públicos de la pasarela para tokenizar la tarjeta en el navegador. Las tarifas salen de la configuración (`BASE_FEE_IN_CENTS`, `DELIVERY_FEE_IN_CENTS`); los contratos se piden a la pasarela en cada llamada, para entregar siempre su versión vigente.
+
+`paymentGateway` trae la URL base de la API de la pasarela (sin barra final) y la llave pública (`PAYMENT_GATEWAY_BASE_URL`, `PAYMENT_GATEWAY_PUBLIC_KEY`). Con ellas el navegador tokeniza la tarjeta directamente en la pasarela: el número y el CVC nunca llegan al backend. Son datos públicos; el secreto de integridad nunca sale del backend.
 
 **200**
 
@@ -345,6 +347,10 @@ Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casilla
       "token": "eyJhbGciOiJIUzI1NiJ9...",
       "url": "https://gateway.example/docs/personal-data-auth.pdf"
     }
+  },
+  "paymentGateway": {
+    "baseUrl": "https://gateway.example/v1",
+    "publicKey": "pub_test_..."
   }
 }
 ```
@@ -531,7 +537,7 @@ El frontend decide qué mostrar según el `code`, nunca según el `message`.
 | Operación | Quién la hace | Credencial |
 |-----------|---------------|------------|
 | Obtener los contratos a aceptar | Backend (`GET /api/checkout/config`) | Llave pública |
-| Tokenizar la tarjeta | **Frontend**, directo a la pasarela | Llave pública |
+| Tokenizar la tarjeta | **Frontend**, directo a la pasarela, con la URL y la llave pública de `GET /api/checkout/config` | Llave pública |
 | Crear el cobro | Backend (`POST /api/transactions/:id/payment`) | **Llave pública + firma de integridad** |
 | Consultar el estado del cobro | Backend (`GET /api/transactions/:id`) | Ninguna: la consulta es pública |
 
@@ -577,13 +583,7 @@ Fecha de vencimiento futura y CVC de 3 dígitos.
 | `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` | Espera máxima del estado final tras cobrar (por defecto `10000`) |
 | `PAYMENT_GATEWAY_POLL_INTERVAL_MS` | Frecuencia de consulta durante la espera (por defecto `1000`) |
 
-**Frontend (`frontend/.env`)**
-
-| Variable | Uso |
-|----------|-----|
-| `VITE_API_URL` | URL del backend |
-| `VITE_PAYMENT_GATEWAY_URL` | URL de la pasarela, solo para tokenizar |
-| `VITE_PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública |
+**Frontend:** no necesita variables de entorno. Llama a la API en `/api`, en su mismo origen, y recibe la URL de la pasarela y la llave pública en `GET /api/checkout/config`. Así la configuración de la pasarela vive en un solo lugar, el `.env` del backend, y cambiar de llave no obliga a recompilar la SPA.
 
 En el repositorio solo existen los `.env.example`, con los valores vacíos.
 

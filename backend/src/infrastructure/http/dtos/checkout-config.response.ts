@@ -3,6 +3,7 @@ import type { CheckoutConfigOutput } from '@application/dtos/checkout/checkout-c
 import type {
   AcceptanceContract,
   AcceptanceContracts,
+  PaymentGatewayPublicSettings,
 } from '@application/ports/payment-gateway.port';
 import {
   CURRENCY,
@@ -32,6 +33,21 @@ export class AcceptanceContractsResponse implements AcceptanceContracts {
   personalDataAuth!: AcceptanceContractResponse;
 }
 
+export class PaymentGatewayPublicSettingsResponse implements PaymentGatewayPublicSettings {
+  @ApiProperty({
+    description: 'URL base de la API de la pasarela, sin barra final',
+    example: 'https://gateway.test/v1',
+  })
+  baseUrl!: string;
+
+  @ApiProperty({
+    description:
+      'Llave pública del comercio: el navegador la usa para tokenizar la tarjeta',
+    example: 'pub_test_abc123',
+  })
+  publicKey!: string;
+}
+
 /** Configuración del checkout (documentación de Swagger). */
 export class CheckoutConfigResponse implements CheckoutConfigOutput {
   @ApiProperty({ enum: Object.values(CURRENCY), example: STORE_CURRENCY })
@@ -56,4 +72,11 @@ export class CheckoutConfigResponse implements CheckoutConfigOutput {
     description: 'Contratos que el cliente acepta con dos casillas explícitas',
   })
   acceptance!: AcceptanceContractsResponse;
+
+  @ApiProperty({
+    type: PaymentGatewayPublicSettingsResponse,
+    description:
+      'Datos públicos para tokenizar la tarjeta en el navegador; el número nunca llega al backend',
+  })
+  paymentGateway!: PaymentGatewayPublicSettingsResponse;
 }

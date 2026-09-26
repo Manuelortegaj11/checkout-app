@@ -52,4 +52,17 @@ describe('ProductCard', () => {
     expect(screen.getByText('Agotado')).toBeInTheDocument();
     expect(screen.getByRole('img')).toHaveClass('grayscale');
   });
+
+  it('muestra la acción que recibe al pie de la tarjeta', () => {
+    render(
+      <ProductCard
+        product={aProduct()}
+        action={<button type="button">Pagar</button>}
+      />,
+    );
+
+    expect(
+      screen.getByRole('article', { name: 'Audífonos inalámbricos' }),
+    ).toContainElement(screen.getByRole('button', { name: 'Pagar' }));
+  });
 });

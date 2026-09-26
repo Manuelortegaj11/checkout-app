@@ -18,6 +18,17 @@ export interface AcceptanceContracts {
   readonly personalDataAuth: AcceptanceContract;
 }
 
+/**
+ * Lo que el navegador necesita para tokenizar la tarjeta directamente en la
+ * pasarela, sin que el número llegue al backend. Son datos públicos: el
+ * secreto de integridad nunca sale del backend.
+ */
+export interface PaymentGatewayPublicSettings {
+  /** URL base de la API de la pasarela, sin barra final. */
+  readonly baseUrl: string;
+  readonly publicKey: string;
+}
+
 /** Cobro con tarjeta de una transacción. */
 export interface PaymentRequest {
   /** Referencia única de la transacción: la pasarela rechaza una repetida. */
@@ -35,6 +46,9 @@ export interface PaymentRequest {
 
 /** Pasarela de pagos externa. */
 export interface PaymentGatewayPort {
+  /** Configuración pública para tokenizar la tarjeta. No consulta la pasarela: no puede fallar. */
+  getPublicSettings(): PaymentGatewayPublicSettings;
+
   /** Versiones vigentes de los contratos que el cliente debe aceptar. */
   getAcceptanceContracts(): ResultAsync<AcceptanceContracts, AppError>;
 
