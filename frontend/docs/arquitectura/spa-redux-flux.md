@@ -4,7 +4,7 @@ Guía de referencia del frontend. Explica cómo se organiza el código, cómo fl
 
 ## Resumen
 
-- **SPA:** Next.js se usa solo como React. `output: 'export'` genera archivos estáticos; todo es componente cliente. Nada de API routes, Server Actions ni SSR con lógica.
+- **SPA con ReactJS:** React puro, empaquetado con **Vite** (herramienta de build, no framework). El enunciado solo permite React o Vue y prohíbe expresamente Next.js y otros frameworks. `vite build` genera archivos estáticos que sirve Nginx; toda la lógica de negocio y los datos viven en el backend.
 - **Flux con Redux Toolkit:** la vista nunca habla con la API. Despacha acciones o thunks; los thunks llaman a servicios; los reducers actualizan el store; la vista lee con selectores.
 - **Checkout como máquina de pasos:** el paso actual vive en el store y se persiste. Al refrescar, la app vuelve exactamente al paso en que estaba el cliente.
 - **Separación por features:** `products`, `checkout` y `transaction`. La lógica pura (tarjeta, formatos, cálculos) vive en `shared/lib` y se prueba sin React.
@@ -42,14 +42,15 @@ stateDiagram-v2
 
 | Paso | Pantalla del enunciado | Cómo se muestra |
 |------|------------------------|-----------------|
-| `PRODUCT` | 1 y 5. Página del producto | Ruta `/` |
-| `PAYMENT_FORM` | 2. Tarjeta y entrega | Modal sobre `/` |
-| `SUMMARY` | 3. Resumen del pago | Backdrop sobre `/` |
+| `PRODUCT` | 1 y 5. Página del producto | Página principal |
+| `PAYMENT_FORM` | 2. Tarjeta y entrega | Modal sobre la página del producto |
+| `SUMMARY` | 3. Resumen del pago | Backdrop sobre la página del producto |
 | `PROCESSING` | Transición mientras se paga | Backdrop con indicador de carga |
-| `RESULT` | 4. Estado final | Ruta `/status` |
+| `RESULT` | 4. Estado final | Pantalla de resultado |
 
 Reglas:
 
+- **Sin router:** la pantalla visible se deriva **solo** de `checkout.step`. El store es la única fuente de verdad, así que una URL nunca puede contradecir el paso persistido tras un refresh. Nginx sirve siempre `index.html`.
 - Las transiciones se hacen **solo** con acciones del slice (`goToStep`, `resetCheckout`) o en los `fulfilled` de los thunks. Un componente nunca escribe el paso "a mano".
 - Al rehidratar en `PROCESSING` con un `transactionId`, la app **reanuda la consulta del estado** de la transacción en vez de volver a cobrar.
 - `resetCheckout` al volver a `PRODUCT` limpia el checkout y vuelve a pedir el producto para mostrar el inventario actualizado.
@@ -73,14 +74,16 @@ Reglas:
 
 ```text
 frontend/
+├── index.html                          # Punto de entrada HTML de Vite
+├── vite.config.ts                      # Plugin de React, alias y servidor de desarrollo
+├── jest.config.ts                      # Jest + jsdom, alias y umbral de cobertura
 ├── public/
 │   └── images/                         # Imágenes optimizadas (WebP) y logos de marcas de tarjeta
 ├── src/
-│   ├── app/                            # SOLO rutas y layout de Next.js
-│   │   ├── layout.tsx                  # HTML base, fuentes, <Providers>
-│   │   ├── providers.tsx               # 'use client': Provider de Redux + PersistGate
-│   │   ├── page.tsx                    # Pasos PRODUCT, PAYMENT_FORM, SUMMARY, PROCESSING
-│   │   └── status/page.tsx             # Paso RESULT
+│   ├── main.tsx                        # Arranque: createRoot + <App />
+│   ├── app/                            # SOLO composición
+│   │   ├── App.tsx                     # Elige la pantalla según checkout.step
+│   │   └── Providers.tsx               # Provider de Redux + PersistGate
 │   │
 │   ├── features/                       # Un directorio por dominio de la UI
 │   │   ├── products/
@@ -112,7 +115,7 @@ frontend/
 │   │   │   ├── transactions.api.ts
 │   │   │   └── payment-gateway.api.ts  # Tokenización con la llave pública
 │   │   ├── hooks/                      # useMediaQuery, useFocusTrap…
-│   │   └── config/env.ts               # Lectura y validación de NEXT_PUBLIC_*
+│   │   └── config/env.ts               # ÚNICO lugar que lee import.meta.env (VITE_*)
 │   │
 │   └── store/
 │       ├── index.ts                    # configureStore + persistReducer + persistor
@@ -172,7 +175,7 @@ La marca se detecta **mientras se escribe** y se muestra su logo; el número se 
 
 ## Imágenes (criterio de 5 puntos)
 
-Con `output: 'export'`, la optimización automática de `next/image` no está disponible (`images.unoptimized: true`). Por eso:
+React no optimiza imágenes por sí solo: la optimización se hace al preparar los archivos y al usarlos.
 
 - Servir **WebP** ya redimensionado al tamaño máximo en que se muestra, con `srcSet`/`sizes` si hay varias resoluciones.
 - Siempre `width` y `height` (o `aspect-ratio`) para reservar el espacio y evitar saltos de layout.
@@ -182,17 +185,18 @@ Con `output: 'export'`, la optimización automática de `next/image` no está di
 
 ## Seguridad
 
-- En `NEXT_PUBLIC_*` solo van la URL del backend, la URL de tokenización y la **llave pública**. Nunca una llave privada.
+- Vite incrusta en el bundle toda variable `VITE_*`, así que es **pública**. Solo van la URL del backend, la URL de tokenización y la **llave pública**. Nunca una llave privada.
 - Nunca usar `dangerouslySetInnerHTML`.
 - El número de tarjeta y el CVC no se loguean, no se guardan y no se envían al backend: solo a la tokenización.
 - Las cabeceras de seguridad (CSP, HSTS…) las pone Nginx.
 
-## Next.js como SPA: detalles a tener en cuenta
+## React + Vite: detalles a tener en cuenta
 
-- `next.config.ts`: `output: 'export'`, `images: { unoptimized: true }`, `trailingSlash: true` para que Nginx sirva las rutas.
-- Todo componente con estado, hooks o Redux lleva `'use client'`.
-- En el build no existe `window`: `redux-persist` usa un storage que no hace nada en el servidor, y `PersistGate` muestra un loader hasta rehidratar. Así se evitan errores de hidratación.
-- Nada de rutas dinámicas que necesiten `generateStaticParams` con datos del backend: el producto se identifica por query string o por el store.
+- **Solo React.** Prohibido cualquier framework (Next.js, Remix, React Router en modo framework, Gatsby…). Vite solo empaqueta; no aporta rutas, servidor ni renderizado.
+- **Variables de entorno:** solo se leen en `shared/config/env.ts`. `import.meta.env` no existe en Jest (CommonJS), así que Jest sustituye ese módulo por uno de prueba (`moduleNameMapper`). Ningún otro archivo usa `import.meta.env`.
+- **Tests con Jest, no Vitest:** Vite trae Vitest por defecto, pero el enunciado exige Jest. Jest usa `ts-jest` con entorno `jsdom`; los imports de CSS e imágenes se sustituyen por mocks.
+- **Rehidratación:** `PersistGate` muestra un indicador de carga hasta recuperar el estado de `localStorage`, para no pintar un paso equivocado durante un instante.
+- **Build:** `vite build` genera `dist/` con archivos con hash en el nombre, que Nginx puede cachear mucho tiempo. `index.html` no se cachea.
 
 ## Tests
 
@@ -206,7 +210,7 @@ Con `output: 'export'`, la optimización automática de `next/image` no está di
 | `shared/api` | `fetch` mockeado: URL, método, cuerpo y manejo de errores | Camino feliz y error |
 
 - Umbral en `jest.config.ts`: `coverageThreshold.global` de **80** en líneas, ramas, funciones y sentencias.
-- Excluir de la cobertura solo lo que no tiene lógica: `app/layout.tsx`, archivos `index.ts` que solo re-exportan y tipos.
+- Excluir de la cobertura solo lo que no tiene lógica: `main.tsx`, `shared/config/env.ts`, archivos `index.ts` que solo re-exportan y tipos.
 - Consultar por rol y texto (`getByRole`, `getByLabelText`), no por clases CSS.
 
 ## Checklist de revisión
@@ -219,6 +223,8 @@ Con `output: 'export'`, la optimización automática de `next/image` no está di
 - [ ] Toda imagen tiene dimensiones reservadas y está en WebP o SVG.
 - [ ] `shared/` no importa de `features/`, `store/` ni `app/`.
 - [ ] Cobertura por encima del 80%.
+- [ ] `import.meta.env` solo aparece en `shared/config/env.ts`.
+- [ ] Ninguna dependencia es un framework (Next.js, Remix, Gatsby…).
 - [ ] El nombre comercial de la pasarela no aparece en el código.
 
 Comprobación rápida desde `frontend/`:
@@ -227,6 +233,7 @@ Comprobación rápida desde `frontend/`:
 grep -rnE "fetch\(|shared/api" src/features/*/components src/app
 grep -rnE "from '.*(features|store|app)/" src/shared
 grep -rnE "cardNumber|cvc" src/store src/features/*/*.slice.ts
+grep -rln "import.meta.env" src | grep -v "shared/config/env.ts"
 ```
 
-Las tres deben devolver cero resultados. En el store de la tarjeta solo existen `token`, `brand` y `last4`.
+Las cuatro deben devolver cero resultados. En el store de la tarjeta solo existen `token`, `brand` y `last4`.
