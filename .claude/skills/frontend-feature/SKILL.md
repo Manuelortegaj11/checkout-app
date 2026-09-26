@@ -42,6 +42,7 @@ Las pruebas viven en `tests/`, fuera de `src/`: cada archivo tiene la suya en `t
 
 ## Reglas de UI
 
+- Identidad Pletus: colores, sombras y radios solo con los tokens de `shared/ui/theme.css` (`bg-primary-500`, `text-ink`, `border-line`, `rounded-control`…), nunca con valores literales. Sin logotipo ni mascota. Íconos de `lucide-react`, con `aria-hidden` cuando son decorativos.
 - Mobile first desde 375 px de ancho (iPhone SE 2020); ampliar con `sm:`, `md:`, `lg:`. Flexbox o grid; sin anchos fijos en contenedores.
 - Nada se desborda: `min-w-0`, `max-w-full`, `break-words` donde haya texto largo.
 - Imágenes: WebP o SVG, `width`/`height` o `aspect-ratio`, `object-fit`, `loading="lazy"` fuera de la primera pantalla.
