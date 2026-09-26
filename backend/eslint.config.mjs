@@ -66,7 +66,7 @@ const IMPLICIT_NON_DETERMINISM = [
   },
 ];
 
-const TEST_FILES = ['src/**/*.spec.ts', 'src/testing/**/*.ts', 'test/**/*.ts'];
+const TEST_FILES = ['src/**/*.spec.ts', 'tests/**/*.ts', 'test/**/*.ts'];
 
 /**
  * Reglas de una capa del núcleo. El código de producción además no puede

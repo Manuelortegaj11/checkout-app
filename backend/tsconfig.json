@@ -20,7 +20,7 @@
       "@application/*": ["src/application/*"],
       "@infrastructure/*": ["src/infrastructure/*"],
       "@config/*": ["src/config/*"],
-      "@testing/*": ["src/testing/*"]
+      "@testing/*": ["tests/support/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
