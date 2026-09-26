@@ -17,12 +17,15 @@ const FOCUSABLE = [
  *
  * El foco inicial va al panel: así se anuncia su título y en móvil no se abre
  * el teclado antes de que el cliente elija un campo.
+ *
+ * Sin `onClose`, Escape no hace nada: el diálogo no se puede cerrar (por
+ * ejemplo, mientras se cobra un pago).
  */
 export function useDialogBehavior(
   panelRef: RefObject<HTMLElement | null>,
-  onClose: () => void,
+  onClose?: () => void,
 ): void {
-  const close = useEffectEvent(onClose);
+  const close = useEffectEvent(() => onClose?.());
 
   useEffect(() => {
     const panel = panelRef.current;
