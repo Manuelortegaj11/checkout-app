@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from '@config/env.validation';
 import { HealthModule } from '@infrastructure/modules/health/health.module';
 import { PersistenceModule } from '@infrastructure/modules/persistence/persistence.module';
+import { ProductModule } from '@infrastructure/modules/product/product.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { PersistenceModule } from '@infrastructure/modules/persistence/persisten
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PersistenceModule,
     HealthModule,
+    ProductModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
