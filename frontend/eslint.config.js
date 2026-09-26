@@ -21,9 +21,11 @@ const FEATURE_INTERNALS = {
     'Importa otra feature desde su API pública (@features/<feature>), no sus archivos internos.',
 };
 
-// Flux: la vista despacha thunks; nunca habla con la API.
+// Flux: la vista despacha thunks; nunca habla con la API. Sí puede usar los
+// tipos del contrato (import type), que no ejecutan nada.
 const API_FROM_VIEW = {
   regex: '(^@shared|/shared)/api(/|$)',
+  allowTypeImports: true,
   message:
     'Los componentes no llaman a la API: despachan un thunk y leen el resultado con un selector.',
 };
@@ -107,7 +109,8 @@ export default tseslint.config(
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': restrictImports(TESTING_IMPORTS),
+      '@typescript-eslint/no-restricted-imports':
+        restrictImports(TESTING_IMPORTS),
       'no-restricted-syntax': ['error', IMPORT_META_ENV, DANGEROUS_HTML],
       'no-restricted-globals': ['error', FETCH, ...BROWSER_STORAGE],
     },
@@ -115,7 +118,7 @@ export default tseslint.config(
   {
     files: ['src/shared/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': restrictImports(
+      '@typescript-eslint/no-restricted-imports': restrictImports(
         TESTING_IMPORTS,
         forbiddenLayers(['features', 'store', 'app']),
       ),
@@ -124,7 +127,7 @@ export default tseslint.config(
   {
     files: ['src/features/**/*.{ts,tsx}', 'src/store/**/*.ts'],
     rules: {
-      'no-restricted-imports': restrictImports(
+      '@typescript-eslint/no-restricted-imports': restrictImports(
         TESTING_IMPORTS,
         forbiddenLayers(['app']),
         FEATURE_INTERNALS,
@@ -134,7 +137,7 @@ export default tseslint.config(
   {
     files: ['src/features/*/components/**/*.tsx'],
     rules: {
-      'no-restricted-imports': restrictImports(
+      '@typescript-eslint/no-restricted-imports': restrictImports(
         TESTING_IMPORTS,
         forbiddenLayers(['app']),
         FEATURE_INTERNALS,
@@ -145,7 +148,7 @@ export default tseslint.config(
   {
     files: ['src/app/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': restrictImports(
+      '@typescript-eslint/no-restricted-imports': restrictImports(
         TESTING_IMPORTS,
         FEATURE_INTERNALS,
         API_FROM_VIEW,
@@ -182,7 +185,7 @@ export default tseslint.config(
     files: ['tests/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser, ...globals.jest } },
     rules: {
-      'no-restricted-imports': restrictImports(),
+      '@typescript-eslint/no-restricted-imports': restrictImports(),
       '@typescript-eslint/unbound-method': 'off',
       'react-refresh/only-export-components': 'off',
     },

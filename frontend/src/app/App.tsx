@@ -1,8 +1,11 @@
-/** Raíz de la SPA: compone las pantallas del checkout. */
+import { ProductCatalog } from '@features/products';
+import { AppLayout } from './AppLayout';
+
+/** Raíz de la SPA: compone la pantalla del checkout que corresponde. Por ahora, el catálogo. */
 export function App() {
   return (
-    <main>
-      <h1>Templetus</h1>
-    </main>
+    <AppLayout>
+      <ProductCatalog />
+    </AppLayout>
   );
 }

@@ -88,7 +88,7 @@ frontend/
 │   │
 │   ├── features/                       # Un directorio por dominio de la UI
 │   │   ├── products/
-│   │   │   ├── components/             # ProductCard.tsx, ProductGallery.tsx…
+│   │   │   ├── components/             # ProductCatalog (contenedor), ProductCard, StockBadge, ProductCardSkeleton
 │   │   │   ├── products.slice.ts
 │   │   │   ├── products.thunks.ts
 │   │   │   ├── products.selectors.ts
@@ -105,13 +105,14 @@ frontend/
 │   │       └── index.ts
 │   │
 │   ├── shared/                         # No importa nada de features/ ni app/
-│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
+│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Badge, Notice, Skeleton, Input, Modal, Backdrop…
 │   │   ├── lib/
 │   │   │   ├── card/                   # luhn.ts, card-brand.ts, expiry.ts, cvc.ts
 │   │   │   ├── format/                 # currency.ts
 │   │   │   └── pricing/                # summary.ts: total = producto + tarifa base + envío
 │   │   ├── api/
-│   │   │   ├── http-client.ts          # fetch con baseURL, timeout y errores normalizados
+│   │   │   ├── api-error.ts            # ApiError con un code estable: el de la API o NETWORK_ERROR, TIMEOUT, UNEXPECTED_ERROR
+│   │   │   ├── http-client.ts          # Único fetch: /api del mismo origen, JSON, tiempo límite y errores normalizados
 │   │   │   ├── products.api.ts
 │   │   │   ├── transactions.api.ts
 │   │   │   └── payment-gateway.api.ts  # Tokenización con la llave pública
@@ -127,7 +128,7 @@ frontend/
     ├── integration/                    # *.int-spec.tsx: flujos del checkout con el store real y la API simulada
     └── support/                        # @testing/*: solo lo importan las pruebas
         ├── fixtures/                   # Productos, transacciones y tarjetas de prueba
-        └── helpers/                    # render-with-store.tsx: React Testing Library con store real
+        └── helpers/                    # render-with-store.tsx (store real y nuevo por prueba), fetch.helper.ts
 ```
 
 ### Regla de dependencias
@@ -218,6 +219,7 @@ Todo color, sombra y radio sale de un token de `src/shared/ui/theme.css` (bloque
 React no optimiza imágenes por sí solo: la optimización se hace al preparar los archivos y al usarlos.
 
 - Servir **WebP** ya redimensionado al tamaño máximo en que se muestra, con `srcSet`/`sizes` si hay varias resoluciones.
+- Cada foto de producto se publica en dos anchos: `<nombre>.webp` (960 px, la ruta que guarda el backend) y `<nombre>-480.webp`. `productImageSources` arma el `srcSet` y el navegador elige según el ancho y la densidad de la pantalla. Autores y licencia en `frontend/docs/creditos-imagenes.md`.
 - Siempre `width` y `height` (o `aspect-ratio`) para reservar el espacio y evitar saltos de layout.
 - `object-fit: cover`/`contain` y `max-w-full`: la imagen nunca se sale de su contenedor.
 - `loading="lazy"` en imágenes fuera de la primera pantalla y `fetchPriority="high"` en la principal del producto.
