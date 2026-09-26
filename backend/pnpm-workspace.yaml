@@ -1,0 +1,10 @@
+# Scripts de instalación de dependencias (pnpm los bloquea por defecto).
+allowBuilds:
+  # Solo compila desde el código fuente si falta el binario precompilado.
+  '@parcel/watcher': false
+  # Telemetría de swagger-ui-dist.
+  '@scarf/scarf': false
+  # Solo verifica el binario nativo del resolver de Jest.
+  unrs-resolver: false
+minimumReleaseAgeExclude:
+  - ts-jest@29.4.14
