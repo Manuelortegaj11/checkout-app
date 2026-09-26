@@ -1,5 +1,6 @@
 import { RotateCw } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import type { Product } from '@shared/api/products.api';
 import { Button } from '@shared/ui/Button';
 import { Notice } from '@shared/ui/Notice';
 import { useAppDispatch, useAppSelector } from '@store/hooks';
@@ -15,8 +16,16 @@ import { ProductCardSkeleton } from './ProductCardSkeleton';
 
 const SKELETON_COUNT = 3;
 
+export interface ProductCatalogProps {
+  /**
+   * Acción de cada tarjeta. La aporta quien compone la pantalla (App), así el
+   * catálogo no depende de la feature de checkout.
+   */
+  renderProductAction?: (product: Product) => ReactNode;
+}
+
 /** Pantalla 1: el inventario con su precio y sus unidades disponibles. */
-export function ProductCatalog() {
+export function ProductCatalog({ renderProductAction }: ProductCatalogProps) {
   const dispatch = useAppDispatch();
   const products = useAppSelector(selectProducts);
   const status = useAppSelector(selectProductsStatus);
@@ -90,7 +99,11 @@ export function ProductCatalog() {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((product, index) => (
             <li key={product.id}>
-              <ProductCard product={product} priority={index === 0} />
+              <ProductCard
+                product={product}
+                priority={index === 0}
+                action={renderProductAction?.(product)}
+              />
             </li>
           ))}
         </ul>

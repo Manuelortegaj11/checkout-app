@@ -15,10 +15,13 @@ describe('App', () => {
     expect(
       within(main).getByRole('heading', { level: 1, name: 'Productos' }),
     ).toBeInTheDocument();
+    const card = await within(main).findByRole('article', {
+      name: 'Audífonos inalámbricos',
+    });
     expect(
-      await within(main).findByRole('article', {
-        name: 'Audífonos inalámbricos',
+      within(card).getByRole('button', {
+        name: 'Pagar con tarjeta de crédito',
       }),
-    ).toBeInTheDocument();
+    ).toBeEnabled();
   });
 });

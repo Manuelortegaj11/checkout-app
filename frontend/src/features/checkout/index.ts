@@ -1,4 +1,5 @@
 // API pública de la feature: el resto de la app importa solo desde aquí.
+export { PayWithCardButton } from './components/PayWithCardButton';
 export { CHECKOUT_STEP, MAX_QUANTITY_PER_PURCHASE } from './checkout-step';
 export type { CheckoutStep } from './checkout-step';
 export {

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Product } from '@shared/api/products.api';
 import { cx } from '@shared/lib/class-names';
 import { formatCurrency } from '@shared/lib/format/currency';
@@ -8,10 +9,16 @@ export interface ProductCardProps {
   product: Product;
   /** Foto visible al cargar la página: se pide primero y sin espera. */
   priority?: boolean;
+  /** Acción al pie de la tarjeta, como el botón de pago que aporta el checkout. */
+  action?: ReactNode;
 }
 
 /** Producto con su foto, descripción, precio y unidades disponibles. */
-export function ProductCard({ product, priority = false }: ProductCardProps) {
+export function ProductCard({
+  product,
+  priority = false,
+  action,
+}: ProductCardProps) {
   const titleId = `product-${product.id}-name`;
   const soldOut = product.stock <= 0;
 
@@ -48,6 +55,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         <p className="mt-auto text-xl font-semibold text-ink tabular-nums">
           {formatCurrency(product.priceInCents, product.currency)}
         </p>
+        {action}
       </div>
     </article>
   );
