@@ -35,7 +35,7 @@ export function ProductCatalog() {
       aria-busy={loading}
       className="flex flex-col gap-6"
     >
-      <header className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <h1
           id="catalog-title"
           className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl"
@@ -45,7 +45,7 @@ export function ProductCatalog() {
         <p className="text-sm text-ink-muted sm:text-base">
           Paga con tarjeta de crédito y recíbelo en tu dirección.
         </p>
-      </header>
+      </div>
 
       {status === 'failed' && (
         <Notice
