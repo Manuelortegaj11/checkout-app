@@ -1,4 +1,4 @@
-import type { CheckoutFees } from '@application/ports/checkout-settings.port';
+import type { CheckoutFees } from '@domain/rules/pricing.rules';
 import type { AcceptanceContracts } from '@application/ports/payment-gateway.port';
 
 export const CHECKOUT_FEES: CheckoutFees = {

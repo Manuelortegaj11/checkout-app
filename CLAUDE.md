@@ -61,11 +61,14 @@ README.md   Único README de la entrega
 - **Railway Oriented Programming** con `neverthrow`: ports y casos de uso devuelven `ResultAsync<T, AppError>` y no lanzan excepciones por errores de negocio. Solo los adapters convierten excepciones en `err`, y solo la capa HTTP convierte `err` en código HTTP.
 - Referencia completa: `backend/docs/arquitectura/hexagonal-ddd-rop.md`. Para crear o modificar código en `backend/src`, usa la skill `/backend-feature`.
 - Módulos obligatorios: inventario (productos), transacciones, clientes y entregas.
+- **Agregados:** `Product`, `Customer` y `Transaction`. `Delivery` vive dentro de `Transaction` (se crean juntas y la entrega solo cambia al liquidar). Entre agregados se referencia por id.
+- **Ids y hora por ports:** los ids (UUID v7) salen de `IdGeneratorPort` y la hora de `ClockPort`. El lint prohíbe `new Date()`, `Date.now()`, `Math.random()` y `randomUUID()` en `shared`, `domain` y `application`.
+- **Parse, don't validate:** los value objects (`Quantity`, `Email`) validan al crearse; un método que recibe un value object no vuelve a validar ni devuelve `Result` si no puede fallar.
 - La transacción se crea en `PENDING`, luego se llama a la pasarela y se actualiza con el resultado. El inventario solo se descuenta si el pago queda aprobado.
 - La base de datos se puebla con un seed de productos ficticios; no hay endpoints para crear productos.
 - Documentar la API con Swagger (`@nestjs/swagger`). Seguridad: helmet, CORS restringido, rate limiting.
 - **NestJS 11, no 12:** NestJS 12 solo se distribuye como ESM y usa Vitest; el enunciado exige Jest, que con ESM sigue siendo experimental. No actualizar a 12.
-- ESLint hace cumplir la arquitectura: falla si `shared`, `domain` o `application` importan frameworks, `config` o capas exteriores (por alias o por ruta relativa), si usan `throw`, o si un import sube más de un nivel. No desactivar esas reglas; corregir el código.
+- ESLint hace cumplir la arquitectura: falla si `shared`, `domain` o `application` importan frameworks, `config` o capas exteriores (por alias o por ruta relativa), si usan `throw` o la hora/azar implícitos, o si un import sube más de un nivel. No desactivar esas reglas; corregir el código.
 - Contrato de la API y modelo de datos: `backend/docs/api/contrato-api.md`.
 
 ## Base de datos (Prisma 7 + PostgreSQL 17)

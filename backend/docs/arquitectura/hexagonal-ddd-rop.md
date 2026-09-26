@@ -37,7 +37,7 @@ graph TB
     subgraph "Domain (Núcleo)"
         direction TB
         CONST["Constants<br/>Lenguaje ubicuo<br/>TRANSACTION_STATUS, DELIVERY_STATUS"]
-        VO["Value Objects<br/>Money, Email, Quantity<br/>create() → Result"]
+        VO["Value Objects<br/>Email, Quantity<br/>create() → Result"]
         RULES["Rules<br/>Políticas puras sin I/O<br/>resolve*, check*, is*, calculate*"]
         ENT["Entity<br/>create() → Result<br/>reconstitute(), toPlainObject()"]
         DERR["Domain Errors<br/>outOfStock(), productNotFound()"]
@@ -93,7 +93,7 @@ graph TB
 | **Shared** | Result | Tipos `Result` / `ResultAsync` (neverthrow) y helpers. Es el "riel" por el que viaja todo. |
 | **Shared** | AppError | Forma común de todos los errores: `type` (categoría), `code` (estable, lo consume el frontend) y `message`. |
 | **Domain** | Constants | Lenguaje ubicuo: catálogos cerrados del negocio como objetos `as const` y sus tipos derivados. No lee `process.env` ni importa DTOs. |
-| **Domain** | Value Objects | Valores inmutables con validación (`Money`, `Email`, `Quantity`). `create()` devuelve `Result`, nunca lanza. |
+| **Domain** | Value Objects | Valores inmutables con validación (`Email`, `Quantity`). `create()` devuelve `Result`, nunca lanza. |
 | **Domain** | Rules | Políticas puras: reciben datos ya cargados y deciden. Sin I/O ni repositorios. Devuelven valor, `boolean` o `Result`. |
 | **Domain** | Entity | Corazón del negocio: atributos, invariantes y comportamiento. Los métodos que pueden violar una regla devuelven `Result`. |
 | **Domain** | Errors | Fábricas de errores de negocio con código estable (`OUT_OF_STOCK`, `TRANSACTION_ALREADY_RESOLVED`). |
@@ -129,14 +129,14 @@ backend/
 │   │   └── errors/                     # app-error.ts: tipos y fábricas base
 │   │
 │   ├── domain/                         # NÚCLEO: solo importa shared
-│   │   ├── constants/                  # TRANSACTION_STATUS, DELIVERY_STATUS, CARD_BRAND…
-│   │   ├── value-objects/              # money.vo.ts, email.vo.ts, quantity.vo.ts
-│   │   ├── rules/                      # stock.rules.ts, pricing.rules.ts…
-│   │   ├── entities/                   # product.entity.ts, transaction.entity.ts…
-│   │   └── errors/                     # product.errors.ts, transaction.errors.ts…
+│   │   ├── constants/                  # CURRENCY, TRANSACTION_STATUS, DELIVERY_STATUS, MAX_QUANTITY_PER_PURCHASE
+│   │   ├── value-objects/              # email.vo.ts (identidad del cliente), quantity.vo.ts (1..10)
+│   │   ├── rules/                      # pricing.rules.ts (montos), stock.rules.ts, contact.rules.ts
+│   │   ├── entities/                   # product, customer, transaction (agregados) · delivery (dentro de transaction)
+│   │   └── errors/                     # product.errors.ts, customer.errors.ts, transaction.errors.ts
 │   │
 │   ├── application/                    # ORQUESTACIÓN: importa domain y shared
-│   │   ├── ports/                      # use-case.port.ts, <feature>.repository.port.ts, payment-gateway.port.ts
+│   │   ├── ports/                      # use-case, <feature>.repository, payment-gateway, checkout-settings, id-generator, clock
 │   │   ├── dtos/<feature>/             # <accion>.input.ts · <feature>.output.ts
 │   │   └── use-cases/<feature>/        # <accion>.use-case.ts · <accion>.use-case.spec.ts · <feature>.mapper.ts
 │   │
@@ -153,6 +153,7 @@ backend/
 │       │   ├── merchant.response.ts        # Valida la respuesta externa y la traduce al port
 │       │   └── payment-gateway.errors.ts
 │       ├── settings/                   # Adapters de configuración (checkout-settings.adapter.ts)
+│       ├── system/                     # uuid-v7.generator.ts (IdGeneratorPort), system-clock.ts (ClockPort)
 │       ├── http/
 │       │   ├── controllers/            # <feature>.controller.ts
 │       │   ├── dtos/                   # <accion>.request.ts · <feature>.response.ts · error.response.ts (Swagger)
@@ -165,6 +166,8 @@ backend/
 │           ├── persistence/            # persistence.module.ts: PrismaService (global)
 │           ├── health/                 # health.module.ts
 │           ├── payment-gateway/        # payment-gateway.adapters.module.ts: compartido por checkout y transacciones
+│           ├── system/                 # system.adapters.module.ts: ids y reloj
+│           ├── customer/               # customer.repositories.module.ts (sin endpoints propios)
 │           └── <feature>/
 │               ├── <feature>.repositories.module.ts   # Adapters de persistencia (exporta sus providers)
 │               ├── <feature>.adapters.module.ts       # Otros adapters de salida (p. ej. pasarela)
@@ -320,9 +323,9 @@ Una regla va en el dominio cuando decide algo del negocio a partir de datos ya c
 - **Resolver:** `resolveTransactionStatus(gatewayStatus)` devuelve el estado interno, o `null` si no existe la correspondencia.
 - **Comprobar (ROP):** `checkStockAvailable(product, quantity)` devuelve `Result<void, AppError>`: `ok` si se cumple, `err(outOfStock())` si no. Sustituye al clásico `assert` que lanza excepción.
 - **Consultar:** `isStockAvailable(product, quantity)` devuelve `boolean` sobre la misma regla, útil en listados.
-- **Calcular:** `calculateTotal({ productPrice, baseFee, deliveryFee })` devuelve un valor, sin efectos secundarios.
+- **Calcular:** `calculateTransactionAmounts({ unitPriceInCents, quantity, fees })` devuelve el desglose del cobro, sin efectos secundarios.
 
-La regla declara su **propia interfaz mínima de entrada** (`interface StockContext { stock: number }`) en lugar de importar un DTO o la entidad completa; entidades y DTOs la satisfacen por tipado estructural. Al no tener I/O, se prueban sin mocks.
+La regla declara su **propia interfaz mínima de entrada** (`interface StockContext { id: string; stock: number }`) en lugar de importar un DTO o la entidad completa; entidades y DTOs la satisfacen por tipado estructural. Al no tener I/O, se prueban sin mocks.
 
 Se queda en `application` lo que depende del caso de uso y no del negocio: armado de respuestas (`*.mapper.ts`), paginación y normalización de entrada.
 
@@ -359,7 +362,7 @@ Así se elimina el `try/catch` disperso: el camino feliz se lee de arriba abajo 
 
 ### Reglas
 
-1. `domain` y `application` **no lanzan** excepciones por errores de negocio: devuelven `err(...)`.
+1. `domain` y `application` **no lanzan** excepciones por errores de negocio: devuelven `err(...)`. Tampoco leen la hora ni generan ids por su cuenta: los piden a `ClockPort` e `IdGeneratorPort`, así los tests son deterministas (el lint lo exige).
 2. `throw` se reserva para bugs de programación (estados imposibles). Los captura el filtro global de NestJS y responden 500.
 3. Los **adapters son la frontera**: toda llamada que puede lanzar (Prisma, HTTP a la pasarela) se envuelve con `fromPromise` y su fallo se traduce a `AppError`.
 4. Los **ports devuelven `ResultAsync<T, AppError>`**, nunca una `Promise` que pueda rechazarse.
@@ -412,137 +415,151 @@ export const outOfStock = () =>
 
 La validación de **formato** de la petición (campos obligatorios, tipos) la hace el `ValidationPipe` con class-validator y responde 400 antes de llegar al caso de uso. La validación de **negocio** vive en el dominio y viaja por el riel.
 
-## Ejemplo completo: crear una transacción
+## Ejemplo real: crear una transacción
 
-### 1. Dominio
+Fragmentos abreviados del código de `POST /api/transactions`; la versión completa está en `src/`.
+
+### 1. Dominio: value object, regla y agregado
 
 ```ts
-// domain/rules/stock.rules.ts
-export interface StockContext {
-  stock: number;
-}
+// domain/value-objects/quantity.vo.ts — si existe una instancia, la cantidad es válida
+export class Quantity {
+  private constructor(readonly value: number) {}
 
+  static create(value: number): Result<Quantity, AppError> {
+    return Number.isInteger(value) && value >= 1 && value <= MAX_QUANTITY_PER_PURCHASE
+      ? ok(new Quantity(value))
+      : err(invalidQuantity(value));
+  }
+}
+```
+
+```ts
+// domain/rules/stock.rules.ts — regla pura con su interfaz mínima de entrada
 export const checkStockAvailable = (
   product: StockContext,
   quantity: number,
 ): Result<void, AppError> =>
-  product.stock >= quantity ? ok(undefined) : err(outOfStock());
+  product.stock >= quantity
+    ? ok(undefined)
+    : err(outOfStock(product.id, quantity, product.stock));
 ```
 
 ```ts
-// domain/entities/transaction.entity.ts
-export class Transaction {
-  private constructor(private readonly props: TransactionProps) {}
-
-  static create(input: NewTransaction): Result<Transaction, AppError> {
-    return Money.create(input.amountInCents).map(
-      (amount) =>
-        new Transaction({ ...input, amount, status: TRANSACTION_STATUS.PENDING }),
-    );
-  }
-
-  static reconstitute(props: TransactionProps): Transaction {
-    return new Transaction(props);
-  }
-
-  resolve(status: TransactionStatus): Result<Transaction, AppError> {
-    if (this.props.status !== TRANSACTION_STATUS.PENDING) {
-      return err(transactionAlreadyResolved(this.props.id));
-    }
-    return ok(new Transaction({ ...this.props, status }));
-  }
-
-  toPlainObject(): TransactionProps {
-    return { ...this.props };
-  }
+// domain/entities/transaction.entity.ts — aggregate root que contiene su entrega
+static create(input: NewTransaction): Transaction {
+  return new Transaction({
+    id: input.id,
+    reference: referenceFor(input.id),
+    status: TRANSACTION_STATUS.PENDING,
+    quantity: input.quantity.value,
+    amounts: calculateTransactionAmounts({
+      unitPriceInCents: input.unitPriceInCents,
+      quantity: input.quantity.value,
+      fees: input.fees,
+    }),
+    delivery: Delivery.create(input.deliveryAddress),
+    // …
+  });
 }
 ```
 
-### 2. Port
+`Transaction.create` no devuelve `Result` porque no puede fallar: recibe un `Quantity` ya validado. El tipo hace imposible el estado inválido (*parse, don't validate*).
+
+### 2. Ports
 
 ```ts
-// application/ports/product.repository.port.ts
-export const PRODUCT_REPOSITORY = Symbol('PRODUCT_REPOSITORY');
-
-export interface ProductRepositoryPort {
-  findById(id: string): ResultAsync<Product | null, AppError>;
+export interface CustomerRepositoryPort {
+  /** Upsert por email: si ya existe, actualiza su contacto y devuelve el existente. */
+  saveByEmail(customer: Customer): ResultAsync<Customer, AppError>;
 }
+
+export interface TransactionRepositoryPort {
+  /** Guarda la transacción y su entrega de forma atómica. */
+  create(transaction: Transaction): ResultAsync<void, AppError>;
+}
+
+export interface IdGeneratorPort { generate(): string } // UUID v7
+export interface ClockPort { now(): Date } // fecha fija en los tests
 ```
 
-### 3. Use Case
+### 3. Use Case: el pipeline de ROP
 
 ```ts
-// application/use-cases/transaction/create-transaction.use-case.ts
-export class CreateTransactionUseCase
-  implements UseCase<CreateTransactionInput, TransactionOutput>
-{
-  constructor(
-    private readonly products: ProductRepositoryPort,
-    private readonly transactions: TransactionRepositoryPort,
-  ) {}
+execute(input: CreateTransactionInput): ResultAsync<TransactionOutput, AppError> {
+  return Result.combine([
+    Quantity.create(input.quantity), // INVALID_QUANTITY
+    Customer.create({ id: this.ids.generate(), ...input.customer }), // INVALID_EMAIL
+  ])
+    .asyncAndThen(([quantity, customer]) =>
+      this.findSellableProduct(input.productId, quantity) // PRODUCT_NOT_FOUND, OUT_OF_STOCK
+        .map((product) => ({ quantity, customer, product })),
+    )
+    .andThen(({ customer, ...purchase }) =>
+      this.customers
+        .saveByEmail(customer) // DB_QUERY_FAILED
+        .map((savedCustomer) => ({ ...purchase, customer: savedCustomer })),
+    )
+    .andThen(({ quantity, product, customer }) => {
+      const transaction = this.openTransaction(input, quantity, product, customer);
 
-  execute(input: CreateTransactionInput): ResultAsync<TransactionOutput, AppError> {
-    return this.products
-      .findById(input.productId)
-      .andThen((product) =>
-        product ? ok(product) : err(productNotFound(input.productId)),
-      )
-      .andThen((product) =>
-        checkStockAvailable(product.toPlainObject(), input.quantity).map(() => product),
-      )
-      .andThen((product) =>
-        Transaction.create({
-          productId: product.id,
-          customerId: input.customerId,
-          amountInCents: calculateTotal({
-            productPrice: product.priceInCents * input.quantity,
-            baseFee: input.baseFeeInCents,
-            deliveryFee: input.deliveryFeeInCents,
-          }),
-        }),
-      )
-      .andThen((transaction) => this.transactions.save(transaction))
-      .map(toTransactionOutput);
-  }
+      return this.transactions
+        .create(transaction) // DB_QUERY_FAILED
+        .map(() => ({ transaction, product, customer }));
+    })
+    .map(toTransactionOutput);
 }
 ```
+
+Se lee de arriba abajo y cada paso declara cómo puede fallar. Las validaciones sin I/O van primero: una petición inválida nunca toca la base de datos, y si el producto no existe o está agotado, el cliente no se registra.
 
 El caso de uso **no tiene decoradores de NestJS**: implementa `UseCase`, recibe los ports por constructor y la infraestructura lo registra con `useCaseProvider`.
 
 ### 4. Test del Use Case
 
 ```ts
-it('devuelve OUT_OF_STOCK y no guarda nada si no hay unidades', async () => {
-  products.findById.mockReturnValue(okAsync(aProduct({ stock: 0 })));
+it('falla con OUT_OF_STOCK sin registrar al cliente', async () => {
+  products.findById.mockReturnValue(okAsync(aProduct({ stock: 1 })));
 
-  const result = await useCase.execute(aCreateTransactionInput({ quantity: 1 }));
+  const result = await useCase.execute(aCreateTransactionInput({ quantity: 2 }));
 
-  expect(result.isErr()).toBe(true);
   expect(result._unsafeUnwrapErr().code).toBe('OUT_OF_STOCK');
-  expect(transactions.save).not.toHaveBeenCalled();
+  expect(customers.saveByEmail).not.toHaveBeenCalled();
+  expect(transactions.create).not.toHaveBeenCalled();
 });
 ```
 
-### 5. Adapter de persistencia
+Cada rama de error comprueba también que los pasos siguientes **no** se ejecutaron: esa es la garantía del riel.
+
+### 5. Adapters de persistencia
 
 ```ts
-// infrastructure/persistence/repositories/product.prisma.repository.ts
-@Injectable()
-export class ProductPrismaRepository implements ProductRepositoryPort {
-  constructor(private readonly prisma: PrismaService) {}
+// customer.prisma.repository.ts — upsert atómico por email
+saveByEmail(customer: Customer): ResultAsync<Customer, AppError> {
+  const { id, fullName, email, phone } = customer.toPlainObject();
 
-  findById(id: string): ResultAsync<Product | null, AppError> {
-    return ResultAsync.fromPromise(
-      this.prisma.product.findUnique({ where: { id } }),
-      (cause) => appError('INFRASTRUCTURE', 'DB_QUERY_FAILED', 'Database query failed', cause),
-    ).map((row) => (row ? ProductPrismaMapper.toDomain(row) : null));
-  }
+  return ResultAsync.fromPromise(
+    this.prisma.customer.upsert({
+      where: { email },
+      create: { id, fullName, email, phone },
+      update: { fullName, phone },
+    }),
+    databaseError,
+  ).map(toCustomerEntity);
 }
+```
 
-export const PRODUCT_REPOSITORY_PROVIDER: Provider = {
-  provide: PRODUCT_REPOSITORY,
-  useClass: ProductPrismaRepository,
-};
+```ts
+// transaction.prisma.repository.ts — transacción + entrega en una escritura anidada (atómica)
+create(transaction: Transaction): ResultAsync<void, AppError> {
+  return ResultAsync.fromPromise(
+    this.prisma.transaction.create({
+      data: toTransactionCreateData(transaction),
+      select: { id: true },
+    }),
+    databaseError,
+  ).map(() => undefined);
+}
 ```
 
 ### 6. Controller y error mapper
@@ -557,28 +574,29 @@ const STATUS_BY_TYPE: Record<AppErrorType, HttpStatus> = {
   INFRASTRUCTURE: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
-export const toHttpException = (error: AppError): HttpException =>
-  new HttpException(
-    { code: error.code, message: error.message },
-    STATUS_BY_TYPE[error.type],
-  );
+/** Salida del riel en los controladores. */
+export const unwrapOrThrowHttp = async <T>(
+  result: Result<T, AppError> | PromiseLike<Result<T, AppError>>,
+): Promise<T> => {
+  const settled = await result;
 
-export const unwrapOrThrowHttp = async <T>(result: ResultAsync<T, AppError>): Promise<T> =>
-  (await result).match(
-    (value) => value,
-    (error) => {
-      throw toHttpException(error);
-    },
-  );
+  if (settled.isErr()) {
+    throw toHttpException(settled.error);
+  }
+
+  return settled.value;
+};
 ```
 
 ```ts
 // infrastructure/http/controllers/transaction.controller.ts
 @Post()
-create(@Body() body: CreateTransactionRequest): Promise<TransactionResponse> {
-  return unwrapOrThrowHttp(this.createTransaction.execute(body));
+create(@Body() request: CreateTransactionRequest): Promise<TransactionResponse> {
+  return unwrapOrThrowHttp(this.createTransaction.execute(request));
 }
 ```
+
+El request DTO valida el formato (con los textos ya recortados por `@Trim()`) y rechaza los campos que no existen: si el cliente envía `totalInCents`, responde 400, porque los montos los calcula el backend.
 
 La respuesta de error nunca incluye `cause`: los detalles internos se registran en el log, no se envían al cliente.
 
@@ -596,13 +614,26 @@ export class ProductRepositoriesModule {}
 // infrastructure/modules/transaction/transaction.use-cases.module.ts
 export const CREATE_TRANSACTION_USE_CASE_PROVIDER = useCaseProvider(
   CreateTransactionUseCase,
-  [PRODUCT_REPOSITORY, TRANSACTION_REPOSITORY],
+  [
+    PRODUCT_REPOSITORY,
+    CUSTOMER_REPOSITORY,
+    TRANSACTION_REPOSITORY,
+    CHECKOUT_SETTINGS,
+    ID_GENERATOR,
+    CLOCK,
+  ],
 );
 
 const providers = [CREATE_TRANSACTION_USE_CASE_PROVIDER];
 
 @Module({
-  imports: [ProductRepositoriesModule, TransactionRepositoriesModule],
+  imports: [
+    ProductRepositoriesModule, // de otro contexto: se importa, no se re-registra
+    CustomerRepositoriesModule,
+    TransactionRepositoriesModule,
+    CheckoutAdaptersModule,
+    SystemAdaptersModule,
+  ],
   providers,
   exports: providers,
 })
@@ -682,9 +713,10 @@ Cada capa tiene una única responsabilidad, y cada error tiene un tipo y un cód
 
 | Principio | Cómo se cumple |
 |-----------|----------------|
-| **Aggregate Root** | Entidades con constructor privado, `create()` y `reconstitute()` garantizan que no existan instancias inválidas. |
-| **Value Objects** | `Money`, `Email`, `Quantity`: inmutables, validados al crearse. |
-| **Lógica en el dominio** | `resolve()`, `checkStockAvailable()`: las reglas viven en entidades y reglas puras, no en servicios anémicos. |
+| **Aggregate Root** | `Product`, `Customer` y `Transaction`: constructor privado, `create()` y `reconstitute()` garantizan que no existan instancias inválidas. |
+| **Agregados y sus límites** | `Transaction` contiene su `Delivery` (se crean juntas y la entrega solo cambia al liquidar la transacción). Entre agregados se referencia por id: la transacción guarda `productId` y `customerId`, no los objetos. |
+| **Value Objects** | `Email` (normalizado: es la identidad del cliente) y `Quantity` (1..10): inmutables y validados al crearse. |
+| **Lógica en el dominio** | `calculateTransactionAmounts()`, `checkStockAvailable()`: el total y la disponibilidad los decide el dominio, nunca el cliente ni el controlador. |
 | **Lenguaje ubicuo** | `domain/constants` define una sola vez los términos del negocio. |
 | **Repository Pattern** | Los ports de repositorio abstraen el almacenamiento y devuelven entidades completas. |
 

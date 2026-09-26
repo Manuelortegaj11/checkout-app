@@ -7,6 +7,7 @@ import { CheckoutModule } from '@infrastructure/modules/checkout/checkout.module
 import { HealthModule } from '@infrastructure/modules/health/health.module';
 import { PersistenceModule } from '@infrastructure/modules/persistence/persistence.module';
 import { ProductModule } from '@infrastructure/modules/product/product.module';
+import { TransactionModule } from '@infrastructure/modules/transaction/transaction.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ProductModule } from '@infrastructure/modules/product/product.module';
     HealthModule,
     ProductModule,
     CheckoutModule,
+    TransactionModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
