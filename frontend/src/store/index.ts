@@ -3,7 +3,6 @@ import {
   FLUSH,
   PAUSE,
   PERSIST,
-  persistStore,
   PURGE,
   REGISTER,
   REHYDRATE,
@@ -30,6 +29,3 @@ export type AppStore = ReturnType<typeof makeStore>;
 export type AppDispatch = AppStore['dispatch'];
 
 export const store = makeStore();
-
-/** Guarda el checkout en localStorage y lo recupera al abrir la app. */
-export const persistor = persistStore(store);
