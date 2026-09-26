@@ -44,6 +44,28 @@ const NO_THROW = {
     'Devuelve err(...) en lugar de lanzar (Railway Oriented Programming).',
 };
 
+// La hora y el azar llegan por ports (ClockPort, IdGeneratorPort): el núcleo es determinista.
+const IMPLICIT_NON_DETERMINISM = [
+  {
+    selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+    message: 'Pide la hora al ClockPort en lugar de usar new Date().',
+  },
+  {
+    selector:
+      "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+    message: 'Pide la hora al ClockPort en lugar de usar Date.now().',
+  },
+  {
+    selector:
+      "CallExpression[callee.object.name='Math'][callee.property.name='random']",
+    message: 'Pide los identificadores al IdGeneratorPort en lugar de usar azar.',
+  },
+  {
+    selector: "CallExpression[callee.name='randomUUID']",
+    message: 'Pide los identificadores al IdGeneratorPort.',
+  },
+];
+
 const TEST_FILES = ['src/**/*.spec.ts', 'src/testing/**/*.ts', 'test/**/*.ts'];
 
 /**
@@ -55,7 +77,7 @@ const coreLayer = (layer, patterns) => [
     files: [`src/${layer}/**/*.ts`],
     rules: {
       'no-restricted-imports': restrictImports(...patterns, TESTING_IMPORTS),
-      'no-restricted-syntax': ['error', NO_THROW],
+      'no-restricted-syntax': ['error', NO_THROW, ...IMPLICIT_NON_DETERMINISM],
     },
   },
   {
