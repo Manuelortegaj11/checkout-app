@@ -10,7 +10,7 @@ const config: Config = {
   testEnvironment: 'node',
   // Alias de tsconfig.json (paths).
   moduleNameMapper: {
-    '^@(shared|domain|application|infrastructure|config)/(.*)$':
+    '^@(shared|domain|application|infrastructure|config|testing)/(.*)$':
       '<rootDir>/../src/$1/$2',
   },
 };

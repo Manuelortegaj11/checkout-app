@@ -1,13 +1,7 @@
-import { Product, type ProductProps } from './product.entity';
+import { Product } from './product.entity';
+import { aProductProps } from '@testing/fixtures/product.fixture';
 
-const props: ProductProps = {
-  id: '01920000-0000-7000-8000-000000000001',
-  name: 'Audífonos inalámbricos',
-  description: 'Cancelación activa de ruido.',
-  priceInCents: 18_990_000,
-  stock: 12,
-  imageUrl: '/images/products/wireless-headphones.webp',
-};
+const props = aProductProps();
 
 describe('Product', () => {
   it('se reconstruye con los datos persistidos', () => {
