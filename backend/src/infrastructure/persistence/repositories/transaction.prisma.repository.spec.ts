@@ -2,6 +2,7 @@ import type { PrismaService } from '@infrastructure/persistence/prisma.service';
 import { aTransactionViewRow } from '@testing/fixtures/transaction-row.fixture';
 import {
   aTransaction,
+  PAYMENT_SUBMITTED_AT,
   TRANSACTION_ID,
 } from '@testing/fixtures/transaction.fixture';
 import {
@@ -11,7 +12,11 @@ import {
 import { TransactionPrismaRepository } from './transaction.prisma.repository';
 
 describe('TransactionPrismaRepository', () => {
-  const transactionTable = { create: jest.fn(), findUnique: jest.fn() };
+  const transactionTable = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    updateMany: jest.fn(),
+  };
   const prisma = { transaction: transactionTable } as unknown as PrismaService;
   const repository = new TransactionPrismaRepository(prisma);
 
@@ -67,6 +72,43 @@ describe('TransactionPrismaRepository', () => {
       transactionTable.findUnique.mockRejectedValue(new Error('timeout'));
 
       const result = await repository.findViewById(TRANSACTION_ID);
+
+      expect(result._unsafeUnwrapErr().code).toBe('DB_QUERY_FAILED');
+    });
+  });
+
+  describe('claimPaymentSubmission', () => {
+    const started = () =>
+      aTransaction().startPayment(PAYMENT_SUBMITTED_AT)._unsafeUnwrap();
+
+    it('reserva el envío solo si sigue PENDING y nadie lo envió antes', async () => {
+      transactionTable.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await repository.claimPaymentSubmission(started());
+
+      expect(result._unsafeUnwrap()).toBe(true);
+      expect(transactionTable.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: TRANSACTION_ID,
+          status: 'PENDING',
+          paymentSubmittedAt: null,
+        },
+        data: { paymentSubmittedAt: PAYMENT_SUBMITTED_AT },
+      });
+    });
+
+    it('devuelve false si otra petición se adelantó', async () => {
+      transactionTable.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await repository.claimPaymentSubmission(started());
+
+      expect(result._unsafeUnwrap()).toBe(false);
+    });
+
+    it('traduce un fallo de la base de datos a DB_QUERY_FAILED', async () => {
+      transactionTable.updateMany.mockRejectedValue(new Error('timeout'));
+
+      const result = await repository.claimPaymentSubmission(started());
 
       expect(result._unsafeUnwrapErr().code).toBe('DB_QUERY_FAILED');
     });

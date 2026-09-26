@@ -4,6 +4,7 @@ import {
   TRANSACTION_REPOSITORY,
   type TransactionRepositoryPort,
 } from '@application/ports/transaction.repository.port';
+import { TRANSACTION_STATUS } from '@domain/constants/transaction.constants';
 import type { Transaction } from '@domain/entities/transaction.entity';
 import type { AppError } from '@shared/errors/app-error';
 import { ok, ResultAsync } from '@shared/result';
@@ -38,6 +39,28 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
       }),
       databaseError,
     ).andThen((row) => (row ? toTransactionView(row) : ok(null)));
+  }
+
+  /**
+   * UPDATE condicional: PostgreSQL bloquea la fila, así que si dos peticiones
+   * llegan a la vez solo una encuentra `payment_submitted_at` vacío.
+   */
+  claimPaymentSubmission(
+    transaction: Transaction,
+  ): ResultAsync<boolean, AppError> {
+    const { id, paymentSubmittedAt } = transaction.toPlainObject();
+
+    return ResultAsync.fromPromise(
+      this.prisma.transaction.updateMany({
+        where: {
+          id,
+          status: TRANSACTION_STATUS.PENDING,
+          paymentSubmittedAt: null,
+        },
+        data: { paymentSubmittedAt },
+      }),
+      databaseError,
+    ).map(({ count }) => count === 1);
   }
 }
 

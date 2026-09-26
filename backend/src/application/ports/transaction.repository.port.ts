@@ -12,4 +12,13 @@ export interface TransactionRepositoryPort {
 
   /** La transacción con su producto y su cliente, o `null` si no existe. */
   findViewById(id: string): ResultAsync<TransactionView | null, AppError>;
+
+  /**
+   * Reserva el envío del cobro de forma atómica: solo tiene éxito si la
+   * transacción sigue PENDING y nadie lo envió antes. Devuelve `false` si otra
+   * petición se adelantó, para no cobrar dos veces.
+   */
+  claimPaymentSubmission(
+    transaction: Transaction,
+  ): ResultAsync<boolean, AppError>;
 }
