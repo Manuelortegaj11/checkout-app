@@ -1,7 +1,7 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
+import { AppModule } from '@infrastructure/modules/app.module';
 import { configureApp } from '@infrastructure/http/configure-app';
 
 describe('API (e2e)', () => {

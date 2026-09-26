@@ -3,11 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from '@config/env.validation';
-import { CheckoutModule } from '@infrastructure/modules/checkout/checkout.module';
-import { HealthModule } from '@infrastructure/modules/health/health.module';
-import { PersistenceModule } from '@infrastructure/modules/persistence/persistence.module';
-import { ProductModule } from '@infrastructure/modules/product/product.module';
-import { TransactionModule } from '@infrastructure/modules/transaction/transaction.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { HealthModule } from './health/health.module';
+import { PersistenceModule } from './persistence/persistence.module';
+import { ProductModule } from './product/product.module';
+import { TransactionModule } from './transaction/transaction.module';
 
 @Module({
   imports: [
