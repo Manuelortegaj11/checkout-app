@@ -1,11 +1,6 @@
-export const CHECKOUT_SETTINGS = Symbol('CHECKOUT_SETTINGS');
+import type { CheckoutFees } from '@domain/rules/pricing.rules';
 
-/** Tarifas que se suman al valor del producto, en centavos. */
-export interface CheckoutFees {
-  /** Se cobra siempre, en cada compra. */
-  readonly baseFeeInCents: number;
-  readonly deliveryFeeInCents: number;
-}
+export const CHECKOUT_SETTINGS = Symbol('CHECKOUT_SETTINGS');
 
 /**
  * Parámetros comerciales del checkout. Se validan al arrancar la API,

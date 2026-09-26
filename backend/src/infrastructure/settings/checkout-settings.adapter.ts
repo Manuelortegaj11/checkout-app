@@ -2,10 +2,10 @@ import { Injectable, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CHECKOUT_SETTINGS,
-  type CheckoutFees,
   type CheckoutSettingsPort,
 } from '@application/ports/checkout-settings.port';
 import type { EnvironmentVariables } from '@config/env.validation';
+import type { CheckoutFees } from '@domain/rules/pricing.rules';
 
 /** Tarifas del checkout leídas de las variables de entorno (validadas al arrancar). */
 @Injectable()
