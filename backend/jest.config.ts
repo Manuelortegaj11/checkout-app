@@ -42,6 +42,8 @@ const config: Config = {
       testMatch: ['<rootDir>/tests/e2e/**/*.e2e-spec.ts'],
     },
   ],
+  // `pnpm test:cov` mide la cobertura solo con las pruebas unitarias. Lo que no
+  // alcanzan (el arranque de NestJS) lo verifican las de integración.
   collectCoverageFrom: [
     'src/**/*.ts',
     // Solo arranque y cableado de NestJS: sin lógica que probar.

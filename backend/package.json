@@ -23,7 +23,7 @@
     "test:integration": "jest --selectProjects integration",
     "test:e2e": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --selectProjects e2e",
     "test:all": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js",
-    "test:cov": "jest --selectProjects unit integration --coverage",
+    "test:cov": "jest --selectProjects unit --coverage",
     "test:watch": "jest --selectProjects unit --watch",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
