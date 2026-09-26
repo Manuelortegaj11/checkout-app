@@ -1,7 +1,12 @@
 import { screen, within } from '@testing-library/react';
 import { App } from '@app/App';
+import { checkoutApi } from '@shared/api/checkout.api';
 import { productsApi } from '@shared/api/products.api';
-import { aProduct } from '@testing/fixtures/product.fixture';
+import {
+  aCheckoutConfig,
+  aCheckoutState,
+} from '@testing/fixtures/checkout.fixture';
+import { aProduct, PRODUCT_ID } from '@testing/fixtures/product.fixture';
 import { renderWithStore } from '@testing/helpers/render-with-store';
 
 describe('App', () => {
@@ -23,5 +28,24 @@ describe('App', () => {
         name: 'Pagar con tarjeta de crédito',
       }),
     ).toBeEnabled();
+  });
+
+  it('en el paso de pago muestra el formulario sobre el catálogo', async () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue([aProduct()]);
+    jest.spyOn(checkoutApi, 'getConfig').mockResolvedValue(aCheckoutConfig());
+
+    renderWithStore(<App />, {
+      preloadedState: {
+        checkout: aCheckoutState({
+          step: 'PAYMENT_FORM',
+          productId: PRODUCT_ID,
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Pago con tarjeta' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByLabelText('Nombre completo')).toBeInTheDocument();
   });
 });

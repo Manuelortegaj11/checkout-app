@@ -1,5 +1,6 @@
 // API pública de la feature: el resto de la app importa solo desde aquí.
 export { ProductCatalog } from './components/ProductCatalog';
+export { productImageSources } from './product-image';
 export {
   selectProducts,
   selectProductsErrorCode,
