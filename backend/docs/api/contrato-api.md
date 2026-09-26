@@ -432,6 +432,15 @@ Envía el cobro a la pasarela. La respuesta puede traer ya el estado final o seg
 
 **200:** `TransactionResponse`. **Un pago rechazado no es un error HTTP**: responde 200 con `status: "DECLINED"` y el motivo en `statusMessage`.
 
+Comportamiento:
+
+- **Orden de comprobación:** formato (400) → la transacción existe (404) → sigue `PENDING` y sin cobro enviado (409) → queda stock (409) → reserva atómica del envío (409 si otra petición se adelantó) → cobro en la pasarela.
+- **Nunca se cobra dos veces:** la reserva es un `UPDATE … WHERE payment_submitted_at IS NULL`; de dos peticiones simultáneas solo una pasa.
+- **Espera acotada:** tras crear el cobro, el backend consulta su estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` (10 s). En el Sandbox, una tarjeta aprobada tarda ~1 s y una rechazada ~2 s. Si no hay resultado a tiempo, responde `PENDING` y la SPA sigue con `GET`.
+- **Los tokens de aceptación son de un solo uso:** la pasarela los consume en el primer intento de cobro, aunque falle. Por eso cada cobro usa los de un `GET /api/checkout/config` reciente.
+- **Solo tokens:** el cuerpo no admite otros campos. Si se envía `cardNumber` o similar, responde 400: el número de la tarjeta nunca llega al backend.
+- **Rate limiting propio:** 10 intentos de pago por minuto por IP (el límite general es 100).
+
 | Error | HTTP | Cuándo |
 |-------|------|--------|
 | `INVALID_REQUEST` | 400 | Formato inválido |
@@ -523,24 +532,30 @@ El frontend decide qué mostrar según el `code`, nunca según el `message`.
 |-----------|---------------|------------|
 | Obtener los contratos a aceptar | Backend (`GET /api/checkout/config`) | Llave pública |
 | Tokenizar la tarjeta | **Frontend**, directo a la pasarela | Llave pública |
-| Crear la transacción de cobro | Backend | Llave privada + firma de integridad |
-| Consultar el estado | Backend | Llave privada (la pasarela solo lo permite desde el servidor) |
+| Crear el cobro | Backend (`POST /api/transactions/:id/payment`) | **Llave pública + firma de integridad** |
+| Consultar el estado del cobro | Backend (`GET /api/transactions/:id`) | Ninguna: la consulta es pública |
 
 - **Firma de integridad:** `SHA256(reference + totalInCents + currency + secretoDeIntegridad)`, calculada solo en el backend.
 - En el cobro se envían `acceptance_token` y `accept_personal_auth` con los dos tokens aceptados por el cliente.
 - **Estados de la pasarela:** `PENDING`, `APPROVED`, `DECLINED`, `VOIDED`, `ERROR`. Se guardan tal cual en `Transaction.status`.
 - **Seguimiento por consulta (polling), no por webhooks.** Los webhooks se configuran en el panel del comercio, y la cuenta Sandbox es compartida entre candidatos: cambiar su URL de eventos afectaría a otros. El backend consulta hasta ~10 s tras enviar el pago, y la SPA sigue consultando `GET /api/transactions/:id` cada 2 s hasta 60 s.
+- **Verificado en el Sandbox:** el cobro se crea con la llave pública (con la privada la pasarela responde "Llave no válida") y la firma de integridad. La consulta del estado no requiere credenciales. **El backend no necesita la llave privada**, así que no la guarda: es un secreto menos que proteger.
+- **Cobro (implementado):** `POST {PAYMENT_GATEWAY_BASE_URL}/transactions` con `acceptance_token`, `accept_personal_auth`, `amount_in_cents`, `currency`, `signature`, `customer_email`, `reference` y `payment_method: { type: "CARD", token, installments }`. Respuestas 4xx (firma inválida, token ya usado, referencia repetida) → `PAYMENT_GATEWAY_REJECTED`; red, timeout o 5xx → `PAYMENT_GATEWAY_UNAVAILABLE`.
+- **Estado (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/transactions/{id}` → `data.status` y `data.status_message`. Un estado desconocido o una respuesta sin `id` se tratan como `PAYMENT_GATEWAY_UNAVAILABLE`.
+- **Referencia única:** la pasarela rechaza una referencia repetida ("La referencia ya ha sido usada"). La nuestra deriva del id de la transacción, así que nunca se repite.
 - **Contratos (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/merchants/{llavePública}`. De la respuesta se usan `data.presigned_acceptance` (política de uso) y `data.presigned_personal_data_auth` (datos personales), cada uno con `acceptance_token` y `permalink`. La respuesta se valida antes de usarla: si falta un campo, se responde `PAYMENT_GATEWAY_UNAVAILABLE`.
 - **Timeout:** cada petición a la pasarela se corta a los `PAYMENT_GATEWAY_TIMEOUT_MS` (10 s por defecto).
-- **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404.
+- **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404. El secreto de integridad tiene el caso inverso: dos `I` mayúsculas que en la imagen parecen `l`; con las `l` la pasarela responde "La firma es inválida".
+- **Riesgos conocidos:** si la pasarela no responde **al crear** el cobro, la compra queda en `ERROR`; si en realidad sí lo creó, no se concilia automáticamente (se haría con webhooks, que no se usan porque la cuenta del Sandbox es compartida). Si se aprueba un cobro cuando ya no queda stock (dos compras de la última unidad a la vez), se registra `APPROVED` y una advertencia en el log.
 
 ### Tarjetas de prueba (Sandbox)
 
+Verificadas contra el Sandbox:
+
 | Número | Resultado |
 |--------|-----------|
-| `4242 4242 4242 4242` | `APPROVED` |
-| `4111 1111 1111 1111` | `DECLINED` |
-| Cualquier otro número válido | `ERROR` |
+| `4242 4242 4242 4242` | `APPROVED` (~1 s) |
+| `4111 1111 1111 1111` | `DECLINED` (~2 s), con `statusMessage` "La transacción fue rechazada (Sandbox)" |
 
 Fecha de vencimiento futura y CVC de 3 dígitos.
 
@@ -558,8 +573,9 @@ Fecha de vencimiento futura y CVC de 3 dígitos.
 | `PAYMENT_GATEWAY_BASE_URL` | URL de la API de la pasarela (Sandbox). Obligatoria, `https` |
 | `PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública. Obligatoria, empieza por `pub_` |
 | `PAYMENT_GATEWAY_TIMEOUT_MS` | Timeout por petición a la pasarela (por defecto `10000`) |
-| `PAYMENT_GATEWAY_PRIVATE_KEY` | Llave privada |
-| `PAYMENT_GATEWAY_INTEGRITY_SECRET` | Secreto de integridad |
+| `PAYMENT_GATEWAY_INTEGRITY_SECRET` | Secreto de integridad: firma cada cobro. Obligatorio |
+| `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` | Espera máxima del estado final tras cobrar (por defecto `10000`) |
+| `PAYMENT_GATEWAY_POLL_INTERVAL_MS` | Frecuencia de consulta durante la espera (por defecto `1000`) |
 
 **Frontend (`frontend/.env`)**
 
@@ -579,10 +595,11 @@ En el repositorio solo existen los `.env.example`, con los valores vacíos.
 | `GetProduct` | `GET /api/products/:id` | `ProductRepository` |
 | `GetCheckoutConfig` | `GET /api/checkout/config` | `CheckoutSettings`, `PaymentGateway` |
 | `CreateTransaction` | `POST /api/transactions` | `ProductRepository`, `CustomerRepository`, `TransactionRepository`, `CheckoutSettings` |
-| `SubmitPayment` | `POST /api/transactions/:id/payment` | `TransactionRepository`, `ProductRepository`, `PaymentGateway` |
-| `GetTransaction` | `GET /api/transactions/:id` | `TransactionRepository`, `PaymentGateway` |
+| `SubmitPayment` | `POST /api/transactions/:id/payment` | `TransactionRepository`, `PaymentGateway`, `Clock` |
+| `GetTransaction` | `GET /api/transactions/:id` | `TransactionRepository`, `PaymentGateway`, `Clock` |
 
-- `SubmitPayment` y `GetTransaction` comparten la regla de liquidación.
+- `SubmitPayment` y `GetTransaction` comparten la regla de liquidación (`recordPaymentResult`).
+- `TransactionRepository.findViewById` carga la transacción con su producto y su cliente en una sola consulta; por eso `SubmitPayment` no necesita el repositorio de productos para comprobar el stock.
 - Crear la transacción y su entrega es atómico: `TransactionRepository.create` guarda ambas en una sola transacción de base de datos. El módulo de entregas aporta su entidad, sus reglas de estado y su mapper.
 - La liquidación (estado + stock + entrega) es **un solo método del repositorio** (`TransactionRepository.settle`), que el adapter de Prisma ejecuta dentro de `prisma.$transaction`.
 - `CheckoutSettings` es un port que entrega las tarifas desde la configuración, para que el dominio no lea `process.env`.
