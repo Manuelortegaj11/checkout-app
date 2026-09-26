@@ -121,9 +121,12 @@ frontend/
 │       ├── index.ts                    # configureStore + persistReducer + persistor
 │       ├── root-reducer.ts
 │       └── hooks.ts                    # useAppDispatch, useAppSelector tipados
-└── test/
-    ├── render-with-store.tsx           # Helper de React Testing Library con store real
-    └── fixtures/                       # Productos, transacciones y tarjetas de prueba
+└── tests/                              # TODAS las pruebas, fuera de src/ (igual que el backend)
+    ├── unit/                           # *.spec.ts(x): espejo de src/ (lib, api, slices, thunks, componentes)
+    ├── integration/                    # *.int-spec.tsx: flujos del checkout con el store real y la API simulada
+    └── support/                        # @testing/*: solo lo importan las pruebas
+        ├── fixtures/                   # Productos, transacciones y tarjetas de prueba
+        └── helpers/                    # render-with-store.tsx: React Testing Library con store real
 ```
 
 ### Regla de dependencias
@@ -144,7 +147,7 @@ app ──► features ──► shared
 - Componentes en `PascalCase.tsx`, un componente por archivo.
 - Resto de archivos en `kebab-case` con sufijo de rol: `.slice.ts`, `.thunks.ts`, `.selectors.ts`, `.api.ts`.
 - Hooks con prefijo `use`.
-- Tests `*.test.ts(x)` junto al archivo que prueban.
+- Pruebas en `tests/`, fuera de `src/`: `*.spec.ts(x)` en `tests/unit/` con la misma ruta que el archivo en `src/` y `*.int-spec.tsx` en `tests/integration/`. Es el mismo esquema que el backend.
 - La pasarela se nombra de forma genérica (`paymentGateway`), nunca con su nombre comercial.
 
 ## Componentes
@@ -199,6 +202,15 @@ React no optimiza imágenes por sí solo: la optimización se hace al preparar l
 - **Build:** `vite build` genera `dist/` con archivos con hash en el nombre, que Nginx puede cachear mucho tiempo. `index.html` no se cachea.
 
 ## Tests
+
+Mismo esquema que el backend: todas las pruebas en `tests/`, una carpeta por nivel y una sola `jest.config.ts` con un proyecto por nivel.
+
+| Nivel | Carpeta y sufijo | Qué prueba |
+|-------|------------------|------------|
+| Unitario | `tests/unit/**/*.spec.ts(x)` | Una pieza aislada, en la misma ruta que tiene en `src/`: función de `shared/lib`, servicio de API, slice, thunk, selector o componente |
+| Integración | `tests/integration/**/*.int-spec.tsx` | Un flujo completo del checkout con el store real, la persistencia y la API simulada (por ejemplo, refrescar en `SUMMARY` y seguir donde iba) |
+
+No hay e2e en el frontend: el recorrido real contra la API y el Sandbox lo cubren las e2e del backend. La cobertura se mide solo con las pruebas unitarias.
 
 | Qué | Cómo | Objetivo |
 |-----|------|----------|

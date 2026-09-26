@@ -40,7 +40,7 @@ README.md   Único README de la entrega
 - Estructura en `frontend/src/`: `main.tsx` → `app/` (solo composición) → `features/` (`products`, `checkout`, `transaction`) → `shared/` (`ui`, `lib`, `api`, `config`), más `store/`. `shared/` no importa nada de `features/`, `store/` ni `app/`.
 - **Sin router:** la pantalla visible se deriva solo de `checkout.step`, así una URL nunca contradice el estado persistido.
 - Variables de entorno `VITE_*` (son públicas: van dentro del bundle). Solo se leen en `shared/config/env.ts`.
-- Tests con **Jest** (`ts-jest` + `jsdom`), no con Vitest: el enunciado exige Jest.
+- Tests con **Jest** (`ts-jest` + `jsdom`), no con Vitest: el enunciado exige Jest. Viven en `frontend/tests/` con el mismo esquema que el backend: `unit/` espejo de `src/`, `integration/` para los flujos del checkout con el store real y `support/`.
 - Estado global con Redux Toolkit siguiendo Flux: vista → `dispatch` → thunk → servicio (`shared/api`) → reducer → selector → vista. Los componentes nunca llaman a `fetch`.
 - El checkout es una máquina de pasos en el store (`PRODUCT` → `PAYMENT_FORM` → `SUMMARY` → `PROCESSING` → `RESULT` → `PRODUCT`). `redux-persist` solo sobre `checkout`, para sobrevivir a un refresh; nunca se persisten el número de tarjeta ni el CVC.
 - Mobile first. Referencia mínima: iPhone SE (2020), 375 px de ancho. Sin desbordamientos; flexbox/grid. Imágenes en WebP/SVG con dimensiones reservadas.
@@ -57,7 +57,7 @@ README.md   Único README de la entrega
   - `config/`: validación de `process.env`. Solo la lee `infrastructure`.
 - Regla de dependencias: `infrastructure → application → domain → shared`. `domain` y `application` nunca importan frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`), `@config` ni `@infrastructure`.
 - Imports entre carpetas con alias: `@shared/*`, `@domain/*`, `@application/*`, `@infrastructure/*`, `@config/*`, `@testing/*`. Nunca `../../`.
-- Inyección de dependencias solo en infraestructura: los adapters exportan `*_PROVIDER` bajo el token de su port; los casos de uso se registran con `useCaseProvider()`. Módulos por contexto en `infrastructure/modules/<feature>/`: `repositories`, `adapters`, `use-cases` y el módulo con los controladores. Un provider nunca se registra dos veces: se importa el `repositories.module` del otro contexto.
+- Inyección de dependencias solo en infraestructura: los adapters exportan `*_PROVIDER` bajo el token de su port; los casos de uso se registran con `useCaseProvider()`. Módulos por contexto en `infrastructure/modules/<feature>/`: `repositories`, `adapters`, `use-cases` y el módulo con los controladores; el módulo raíz es `infrastructure/modules/app.module.ts`. Un provider nunca se registra dos veces: se importa el `repositories.module` del otro contexto.
 - Los controladores solo validan (DTOs con class-validator), llaman al caso de uso y salen del riel. Cero lógica de negocio en controladores.
 - **Railway Oriented Programming** con `neverthrow`: ports y casos de uso devuelven `ResultAsync<T, AppError>` y no lanzan excepciones por errores de negocio. Solo los adapters convierten excepciones en `err`, y solo la capa HTTP convierte `err` en código HTTP.
 - Referencia completa: `backend/docs/arquitectura/hexagonal-ddd-rop.md`. Para crear o modificar código en `backend/src`, usa la skill `/backend-feature`.
@@ -82,11 +82,21 @@ README.md   Único README de la entrega
 
 ## Tests
 
-- Jest obligatorio en frontend y backend con **cobertura > 80%** en cada uno.
+- Jest obligatorio en frontend y backend con **cobertura > 80%** en cada uno, medida **solo con las pruebas unitarias**.
 - Escribir el test junto con cada caso de uso o componente, no al final.
-- Casos de uso: probar con mocks de los ports, sin base de datos.
-- Datos de prueba en `src/testing/fixtures` (`aProduct()`, `aProductRow()`…) y dobles de los ports en `src/testing/mocks`. Se importan con `@testing/*` **solo desde tests**: el lint lo impide en código de producción. Esa carpeta no entra al build ni a la cobertura.
-- Cada contexto tiene una prueba de su módulo NestJS con Prisma, `ConfigService` (`mockConfigService`) y `fetch` simulados (verifica el cableado de tokens) y pruebas e2e en `test/` contra PostgreSQL y el Sandbox reales. Las e2e de pagos cobran de verdad en el Sandbox: restauran el stock y borran sus datos al terminar.
+- En el backend todas las pruebas viven en `backend/tests/`, fuera de `src/`, con un nivel por carpeta (una sola `jest.config.ts` con un proyecto por nivel):
+
+| Carpeta | Sufijo | Qué prueba |
+|---|---|---|
+| `tests/unit/` | `*.spec.ts` | Una pieza aislada con dobles de sus dependencias. Es espejo de `src/`: `src/domain/rules/stock.rules.ts` → `tests/unit/domain/rules/stock.rules.spec.ts`. |
+| `tests/integration/` | `*.int-spec.ts` | Varias piezas reales o NestJS levantado, sin servicios externos: controladores con supertest y `configureApp`, cableado de cada módulo, `useCaseProvider`. |
+| `tests/e2e/` | `*.e2e-spec.ts` | La API completa contra PostgreSQL y el Sandbox reales. |
+| `tests/support/` | — | Fixtures (`aProduct()`, `aTransactionOutput()`…), dobles (`mockProductRepository()`, `mockUseCase()`…) y helpers (`validateRequest()`), con el alias `@testing/*`. |
+
+- Casos de uso: con dobles de los ports, sin base de datos. Controladores: con dobles de los casos de uso (`mockUseCase`), sin levantar NestJS. DTOs de entrada: con `validateRequest`, que transforma y valida como el `ValidationPipe`.
+- `@testing/*` se importa **solo desde tests**: el lint lo impide en código de producción, también por ruta relativa. `tests/` no entra al build.
+- Las pruebas unitarias de `shared`, `domain` y `application` cumplen la misma regla de dependencias que su capa: el lint la aplica también en `tests/unit/<capa>`.
+- Cada contexto tiene una prueba de integración de su módulo NestJS con Prisma, `ConfigService` (`mockConfigService`) y `fetch` simulados (verifica el cableado de tokens). Las e2e de pagos cobran de verdad en el Sandbox: restauran el stock y borran sus datos al terminar.
 - Antes de un commit, comprobar el **código de salida real** de las pruebas: un `| grep` lo oculta. Usar `set -o pipefail` o ejecutar las pruebas sin tubería.
 
 ## Git
@@ -128,9 +138,11 @@ Gestor de paquetes: **pnpm**. Node 22 o superior. Docker para PostgreSQL.
 | `pnpm db:studio` | Explorador visual de la base de datos |
 | `pnpm start:dev` | API en modo desarrollo con recarga (`http://localhost:3001/api`) |
 | `pnpm build` / `pnpm start:prod` | Compila a `dist/` y arranca la versión compilada |
-| `pnpm test` | Tests unitarios |
-| `pnpm test:cov` | Tests con cobertura; falla si baja del 80% |
-| `pnpm test:e2e` | Tests end-to-end contra PostgreSQL y el Sandbox de la pasarela (requiere `docker compose up -d`, `pnpm db:deploy`, `pnpm db:seed`, las variables de la pasarela en `.env` e internet) |
+| `pnpm test` / `pnpm test:unit` | Pruebas unitarias (`tests/unit`) |
+| `pnpm test:cov` | Pruebas unitarias con cobertura; falla si baja del 80% |
+| `pnpm test:integration` | Pruebas de integración (`tests/integration`): NestJS con Prisma y la pasarela simulados |
+| `pnpm test:e2e` | Pruebas end-to-end (`tests/e2e`) contra PostgreSQL y el Sandbox de la pasarela (requiere `docker compose up -d`, `pnpm db:deploy`, `pnpm db:seed`, las variables de la pasarela en `.env` e internet) |
+| `pnpm test:all` | Los tres niveles seguidos (mismos requisitos que `test:e2e`) |
 | `pnpm lint` / `pnpm lint:fix` | ESLint (incluye las reglas de arquitectura) |
 | `pnpm typecheck` | Comprobación de tipos |
 | `pnpm format` | Prettier |
@@ -139,7 +151,7 @@ Swagger: `http://localhost:3001/api/docs`. Configuración: copiar `.env.example`
 
 Primera vez: `docker compose up -d` (raíz) → `pnpm install` → `pnpm db:deploy` → `pnpm db:seed` → `pnpm start:dev` (en `backend/`).
 
-Antes de dar una tarea del backend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov`.
+Antes de dar una tarea del backend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov && pnpm test:integration`. Si tocaste endpoints, persistencia o la pasarela, también `pnpm test:e2e`.
 
 ### Frontend
 

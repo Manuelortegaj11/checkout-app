@@ -1,0 +1,25 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { validateEnv } from '@config/env.validation';
+import { CheckoutModule } from './checkout/checkout.module';
+import { HealthModule } from './health/health.module';
+import { PersistenceModule } from './persistence/persistence.module';
+import { ProductModule } from './product/product.module';
+import { TransactionModule } from './transaction/transaction.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // Límite general por IP: 100 peticiones por minuto.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    PersistenceModule,
+    HealthModule,
+    ProductModule,
+    CheckoutModule,
+    TransactionModule,
+  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+})
+export class AppModule {}

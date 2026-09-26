@@ -24,14 +24,14 @@ La referencia completa está en `frontend/docs/arquitectura/spa-redux-flux.md`. 
 | 3 | Slice | `features/<feature>/<feature>.slice.ts` | Estado inicial explícito; transiciones del checkout solo con acciones. |
 | 4 | Thunks | `features/<feature>/<feature>.thunks.ts` | `createAsyncThunk` que llama al servicio; errores normalizados con `rejectWithValue`. |
 | 5 | Selectores | `features/<feature>/<feature>.selectors.ts` | La vista nunca lee `state.x.y` directamente. |
-| 6 | Tests de estado | `*.test.ts` junto a cada archivo | Reducer, cada `pending`/`fulfilled`/`rejected` y selectores. Servicios con `jest.mock`. |
+| 6 | Tests de estado | `tests/unit/features/<feature>/*.spec.ts` | Reducer, cada `pending`/`fulfilled`/`rejected` y selectores. Servicios con `jest.mock`. |
 | 7 | Componentes presentacionales | `features/<feature>/components/` | Solo props y callbacks. Sin Redux, sin API. |
 | 8 | Componente contenedor | `features/<feature>/components/` | Lee con `useAppSelector`, despacha con `useAppDispatch`. |
-| 9 | Tests de componentes | `*.test.tsx` | React Testing Library con `renderWithStore`; consultar por rol y label. |
+| 9 | Tests de componentes | `tests/unit/features/<feature>/components/*.spec.tsx` | React Testing Library con `renderWithStore`; consultar por rol y label. Si la funcionalidad cambia un flujo del checkout, añade o ajusta su prueba en `tests/integration/`. |
 | 10 | Composición | `app/App.tsx` | Solo elige qué pantalla mostrar según `checkout.step`. Sin router y sin lógica. |
 | 11 | Exportar | `features/<feature>/index.ts` | Otras features importan solo desde aquí. |
 
-Si la funcionalidad solo toca algunas capas, haz solo esos pasos, pero siempre con su test.
+Las pruebas viven en `tests/`, fuera de `src/`: cada archivo tiene la suya en `tests/unit/`, en la misma ruta que en `src/` (`src/shared/lib/card/luhn.ts` → `tests/unit/shared/lib/card/luhn.spec.ts`); los datos y helpers de prueba, en `tests/support/` (`@testing/*`). Si la funcionalidad solo toca algunas capas, haz solo esos pasos, pero siempre con su test.
 
 ## Reglas de estado y persistencia
 

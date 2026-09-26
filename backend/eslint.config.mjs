@@ -25,11 +25,11 @@ const LONG_RELATIVE_IMPORT = {
     'Usa los alias (@shared, @domain, @application, @infrastructure, @config, @testing) en lugar de subir más de un nivel.',
 };
 
-// Los fixtures y dobles de prueba solo existen para los tests.
+// Los fixtures y dobles de prueba solo existen para los tests, ni por alias ni por ruta relativa.
 const TESTING_IMPORTS = {
-  regex: '^@testing/',
+  regex: '^@testing/|^(\\.\\./)+tests/',
   message:
-    'El código de producción no importa utilidades de test (@testing): solo los *.spec.ts.',
+    'El código de producción no importa nada de tests/ (@testing): solo las pruebas.',
 };
 
 const restrictImports = (...patterns) => [
@@ -66,11 +66,12 @@ const IMPLICIT_NON_DETERMINISM = [
   },
 ];
 
-const TEST_FILES = ['src/**/*.spec.ts', 'src/testing/**/*.ts', 'test/**/*.ts'];
+const TEST_FILES = ['tests/**/*.ts'];
 
 /**
  * Reglas de una capa del núcleo. El código de producción además no puede
- * importar @testing; sus tests conservan la regla de dependencias de la capa.
+ * importar @testing; sus pruebas unitarias (tests/unit/<capa>) conservan la
+ * regla de dependencias de la capa.
  */
 const coreLayer = (layer, patterns) => [
   {
@@ -81,7 +82,7 @@ const coreLayer = (layer, patterns) => [
     },
   },
   {
-    files: [`src/${layer}/**/*.spec.ts`],
+    files: [`tests/unit/${layer}/**/*.ts`],
     rules: {
       'no-restricted-imports': restrictImports(...patterns),
     },
