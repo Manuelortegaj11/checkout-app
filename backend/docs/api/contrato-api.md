@@ -225,7 +225,7 @@ stateDiagram-v2
   {
     "code": "INVALID_REQUEST",
     "message": "Request validation failed",
-    "details": [{ "field": "customer.email", "message": "must be an email" }]
+    "details": [{ "field": "customer.email", "message": "email must be an email" }]
   }
   ```
 
@@ -440,6 +440,9 @@ Si la pasarela no responde durante la sincronización, **no es un error**: se de
 | `PAYMENT_ALREADY_SUBMITTED` | 409 | `POST /transactions/:id/payment` |
 | `PAYMENT_GATEWAY_REJECTED` | 502 | `POST /transactions/:id/payment` |
 | `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | `GET /checkout/config`, `POST /transactions/:id/payment` |
+| `NOT_FOUND` | 404 | Ruta inexistente |
+| `PAYLOAD_TOO_LARGE` | 413 | Cuerpo de la petición demasiado grande |
+| `TOO_MANY_REQUESTS` | 429 | Todos (rate limiting) |
 | `DB_QUERY_FAILED` | 500 | Todos |
 | `INTERNAL_ERROR` | 500 | Todos (errores no previstos) |
 

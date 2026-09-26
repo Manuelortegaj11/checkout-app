@@ -19,7 +19,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 | Capa | Tecnología |
 |---|---|
 | Frontend | Next.js + TypeScript como **SPA** (`output: 'export'`), Redux Toolkit + redux-persist, Tailwind CSS |
-| Backend | NestJS + TypeScript, Prisma, PostgreSQL |
+| Backend | NestJS 11 + TypeScript (CommonJS), Prisma, PostgreSQL, neverthrow |
 | Tests | Jest en ambos (+ React Testing Library en el frontend) |
 | Deploy | VPS o EC2: Nginx (estático + proxy `/api`), PM2, HTTPS con Certbot |
 
@@ -57,6 +57,9 @@ README.md   Único README de la entrega
 - La transacción se crea en `PENDING`, luego se llama a la pasarela y se actualiza con el resultado. El inventario solo se descuenta si el pago queda aprobado.
 - La base de datos se puebla con un seed de productos ficticios; no hay endpoints para crear productos.
 - Documentar la API con Swagger (`@nestjs/swagger`). Seguridad: helmet, CORS restringido, rate limiting.
+- **NestJS 11, no 12:** NestJS 12 solo se distribuye como ESM y usa Vitest; el enunciado exige Jest, que con ESM sigue siendo experimental. No actualizar a 12.
+- ESLint hace cumplir la arquitectura: falla si `shared`, `domain` o `application` importan frameworks o capas exteriores, o si usan `throw`. No desactivar esas reglas; corregir el código.
+- Contrato de la API y modelo de datos: `backend/docs/api/contrato-api.md`.
 
 ## Tests
 
@@ -79,4 +82,26 @@ README.md   Único README de la entrega
 
 ## Comandos
 
-Se completarán al crear cada proyecto (dev, test, coverage, migrate, seed).
+Gestor de paquetes: **pnpm**. Node 22 o superior.
+
+### Backend (desde `backend/`)
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm install` | Instala dependencias |
+| `pnpm start:dev` | API en modo desarrollo con recarga (`http://localhost:3001/api`) |
+| `pnpm build` / `pnpm start:prod` | Compila a `dist/` y arranca la versión compilada |
+| `pnpm test` | Tests unitarios |
+| `pnpm test:cov` | Tests con cobertura; falla si baja del 80% |
+| `pnpm test:e2e` | Tests end-to-end de la API |
+| `pnpm lint` / `pnpm lint:fix` | ESLint (incluye las reglas de arquitectura) |
+| `pnpm typecheck` | Comprobación de tipos |
+| `pnpm format` | Prettier |
+
+Swagger: `http://localhost:3001/api/docs`. Configuración: copiar `.env.example` a `.env`.
+
+Antes de dar una tarea del backend por terminada: `pnpm typecheck && pnpm lint && pnpm test:cov`.
+
+### Frontend
+
+Se completarán al crear el proyecto.
