@@ -54,7 +54,7 @@ README.md   Único README de la entrega
   - `infrastructure/`: **adapters** (controladores HTTP, repositorios Prisma, cliente de la pasarela) y el cableado de NestJS.
   - `config/`: validación de `process.env`. Solo la lee `infrastructure`.
 - Regla de dependencias: `infrastructure → application → domain → shared`. `domain` y `application` nunca importan frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`), `@config` ni `@infrastructure`.
-- Imports entre carpetas con alias: `@shared/*`, `@domain/*`, `@application/*`, `@infrastructure/*`, `@config/*`. Nunca `../../`.
+- Imports entre carpetas con alias: `@shared/*`, `@domain/*`, `@application/*`, `@infrastructure/*`, `@config/*`, `@testing/*`. Nunca `../../`.
 - Inyección de dependencias solo en infraestructura: los adapters exportan `*_PROVIDER` bajo el token de su port; los casos de uso se registran con `useCaseProvider()`. Módulos por contexto en `infrastructure/modules/<feature>/`: `repositories`, `adapters`, `use-cases` y el módulo con los controladores. Un provider nunca se registra dos veces: se importa el `repositories.module` del otro contexto.
 - Los controladores solo validan (DTOs con class-validator), llaman al caso de uso y salen del riel. Cero lógica de negocio en controladores.
 - **Railway Oriented Programming** con `neverthrow`: ports y casos de uso devuelven `ResultAsync<T, AppError>` y no lanzan excepciones por errores de negocio. Solo los adapters convierten excepciones en `err`, y solo la capa HTTP convierte `err` en código HTTP.
@@ -80,6 +80,8 @@ README.md   Único README de la entrega
 - Jest obligatorio en frontend y backend con **cobertura > 80%** en cada uno.
 - Escribir el test junto con cada caso de uso o componente, no al final.
 - Casos de uso: probar con mocks de los ports, sin base de datos.
+- Datos de prueba en `src/testing/fixtures` (`aProduct()`, `aProductRow()`…) y dobles de los ports en `src/testing/mocks`. Se importan con `@testing/*` **solo desde tests**: el lint lo impide en código de producción. Esa carpeta no entra al build ni a la cobertura.
+- Cada contexto tiene una prueba de su módulo NestJS con Prisma simulado (verifica el cableado de tokens) y pruebas e2e en `test/` contra PostgreSQL real.
 
 ## Git
 
@@ -121,7 +123,7 @@ Gestor de paquetes: **pnpm**. Node 22 o superior. Docker para PostgreSQL.
 | `pnpm build` / `pnpm start:prod` | Compila a `dist/` y arranca la versión compilada |
 | `pnpm test` | Tests unitarios |
 | `pnpm test:cov` | Tests con cobertura; falla si baja del 80% |
-| `pnpm test:e2e` | Tests end-to-end de la API |
+| `pnpm test:e2e` | Tests end-to-end contra PostgreSQL (requiere `docker compose up -d`, `pnpm db:deploy` y `pnpm db:seed`) |
 | `pnpm lint` / `pnpm lint:fix` | ESLint (incluye las reglas de arquitectura) |
 | `pnpm typecheck` | Comprobación de tipos |
 | `pnpm format` | Prettier |

@@ -144,12 +144,14 @@ backend/
 │       ├── persistence/
 │       │   ├── generated/prisma/       # Cliente generado por Prisma (ignorado por Git)
 │       │   ├── prisma.service.ts       # Único punto de acceso a Prisma
+│       │   ├── database.errors.ts      # databaseError(): fallo de BD → DB_QUERY_FAILED
 │       │   ├── repositories/           # <feature>.prisma.repository.ts
 │       │   └── mappers/                # <feature>.prisma.mapper.ts: fila ↔ entidad
 │       ├── payment-gateway/            # payment-gateway.client.ts + mapper de estados
 │       ├── http/
 │       │   ├── controllers/            # <feature>.controller.ts
-│       │   ├── dtos/                   # <accion>.request.ts · <feature>.response.ts
+│       │   ├── dtos/                   # <accion>.request.ts · <feature>.response.ts · error.response.ts (Swagger)
+│       │   ├── pipes/                  # parse-uuid.pipe.ts: :id inválido → 400 INVALID_REQUEST
 │       │   ├── errors/                 # app-error.http-mapper.ts, validation-exception.factory.ts
 │       │   ├── filters/                # all-exceptions.filter.ts: formato único { code, message }
 │       │   └── configure-app.ts        # Prefijo, helmet, CORS, validación, Swagger
@@ -162,8 +164,11 @@ backend/
 │               ├── <feature>.adapters.module.ts       # Otros adapters de salida (p. ej. pasarela)
 │               ├── <feature>.use-cases.module.ts      # *_USE_CASE_PROVIDER con useCaseProvider
 │               └── <feature>.module.ts                # Controladores; importa el de use-cases
-└── test/
-    └── e2e/                            # Tests end-to-end de la API
+│   │
+│   └── testing/                        # SOLO para tests (fuera del build y de la cobertura)
+│       ├── fixtures/                   # aProduct(), aProductRow()…: datos válidos con overrides
+│       └── mocks/                      # mockProductRepository()…: dobles de los ports
+└── test/                               # *.e2e-spec.ts contra PostgreSQL real (requiere migraciones y seed)
 ```
 
 Módulos del negocio (`<feature>`): `product` (inventario), `customer`, `transaction` y `delivery`.
@@ -208,10 +213,12 @@ constants, errors  ──►  value-objects  ──►  rules, entities
 | `@application/*` | `src/application/*` |
 | `@infrastructure/*` | `src/infrastructure/*` |
 | `@config/*` | `src/config/*` |
+| `@testing/*` | `src/testing/*` (solo desde tests) |
 
 - Entre carpetas distintas se importa **siempre con alias**: `import { appError } from '@shared/errors/app-error'`.
 - Las rutas relativas solo se usan entre vecinos cercanos (`./x`, `../x`). Subir dos niveles (`../../`) es error de lint.
 - Los alias están definidos en `tsconfig.json` (`paths`) y en `moduleNameMapper` de Jest; `nest build` los reescribe al compilar.
+- `@testing` solo se importa desde `*.spec.ts` y `test/`: el lint falla si el código de producción lo usa.
 
 ### Cómo se hace cumplir
 
@@ -687,6 +694,7 @@ Cada capa tiene una única responsabilidad, y cada error tiene un tipo y un cód
 
 ## Checklist de revisión
 
+- [ ] Los datos de prueba salen de `@testing/fixtures` y los dobles de los ports de `@testing/mocks`; ningún archivo de producción importa `@testing`.
 - [ ] `domain/` y `application/` no importan `@nestjs/*`, `@prisma/client`, `class-validator`, `config` ni `infrastructure/`.
 - [ ] `domain/` no importa `application/`.
 - [ ] Los imports entre carpetas usan alias (`@shared`, `@domain`, `@application`, `@infrastructure`, `@config`).

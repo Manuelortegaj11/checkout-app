@@ -11,7 +11,7 @@ const config: Config = {
   clearMocks: true,
   // Alias de tsconfig.json (paths).
   moduleNameMapper: {
-    '^@(shared|domain|application|infrastructure|config)/(.*)$':
+    '^@(shared|domain|application|infrastructure|config|testing)/(.*)$':
       '<rootDir>/$1/$2',
   },
   collectCoverageFrom: [
@@ -22,6 +22,8 @@ const config: Config = {
     '!**/index.ts',
     // Código generado por Prisma.
     '!infrastructure/persistence/generated/**',
+    // Fixtures y dobles de prueba.
+    '!testing/**',
   ],
   coverageDirectory: '../coverage',
   coverageReporters: ['text', 'text-summary', 'lcov'],

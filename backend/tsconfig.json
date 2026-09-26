@@ -19,7 +19,8 @@
       "@domain/*": ["src/domain/*"],
       "@application/*": ["src/application/*"],
       "@infrastructure/*": ["src/infrastructure/*"],
-      "@config/*": ["src/config/*"]
+      "@config/*": ["src/config/*"],
+      "@testing/*": ["src/testing/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

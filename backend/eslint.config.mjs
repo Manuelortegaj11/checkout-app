@@ -22,7 +22,14 @@ const forbiddenLayers = (layers) => ({
 const LONG_RELATIVE_IMPORT = {
   regex: '^\\.\\./\\.\\./',
   message:
-    'Usa los alias (@shared, @domain, @application, @infrastructure, @config) en lugar de subir más de un nivel.',
+    'Usa los alias (@shared, @domain, @application, @infrastructure, @config, @testing) en lugar de subir más de un nivel.',
+};
+
+// Los fixtures y dobles de prueba solo existen para los tests.
+const TESTING_IMPORTS = {
+  regex: '^@testing/',
+  message:
+    'El código de producción no importa utilidades de test (@testing): solo los *.spec.ts.',
 };
 
 const restrictImports = (...patterns) => [
@@ -36,6 +43,28 @@ const NO_THROW = {
   message:
     'Devuelve err(...) en lugar de lanzar (Railway Oriented Programming).',
 };
+
+const TEST_FILES = ['src/**/*.spec.ts', 'src/testing/**/*.ts', 'test/**/*.ts'];
+
+/**
+ * Reglas de una capa del núcleo. El código de producción además no puede
+ * importar @testing; sus tests conservan la regla de dependencias de la capa.
+ */
+const coreLayer = (layer, patterns) => [
+  {
+    files: [`src/${layer}/**/*.ts`],
+    rules: {
+      'no-restricted-imports': restrictImports(...patterns, TESTING_IMPORTS),
+      'no-restricted-syntax': ['error', NO_THROW],
+    },
+  },
+  {
+    files: [`src/${layer}/**/*.spec.ts`],
+    rules: {
+      'no-restricted-imports': restrictImports(...patterns),
+    },
+  },
+];
 
 export default tseslint.config(
   {
@@ -69,43 +98,32 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      'no-restricted-imports': restrictImports(),
+      'no-restricted-imports': restrictImports(TESTING_IMPORTS),
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
   {
-    files: ['src/shared/**/*.ts'],
+    // Tests y utilidades de test: pueden importar @testing.
+    files: TEST_FILES,
     rules: {
-      'no-restricted-imports': restrictImports(
-        FRAMEWORK_IMPORTS,
-        forbiddenLayers(['domain', 'application', 'infrastructure', 'config']),
-      ),
-      'no-restricted-syntax': ['error', NO_THROW],
+      'no-restricted-imports': restrictImports(),
     },
   },
-  {
-    files: ['src/domain/**/*.ts'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        FRAMEWORK_IMPORTS,
-        forbiddenLayers(['application', 'infrastructure', 'config']),
-      ),
-      'no-restricted-syntax': ['error', NO_THROW],
-    },
-  },
-  {
-    files: ['src/application/**/*.ts'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        FRAMEWORK_IMPORTS,
-        forbiddenLayers(['infrastructure', 'config']),
-      ),
-      'no-restricted-syntax': ['error', NO_THROW],
-    },
-  },
+  ...coreLayer('shared', [
+    FRAMEWORK_IMPORTS,
+    forbiddenLayers(['domain', 'application', 'infrastructure', 'config']),
+  ]),
+  ...coreLayer('domain', [
+    FRAMEWORK_IMPORTS,
+    forbiddenLayers(['application', 'infrastructure', 'config']),
+  ]),
+  ...coreLayer('application', [
+    FRAMEWORK_IMPORTS,
+    forbiddenLayers(['infrastructure', 'config']),
+  ]),
   {
     // En los tests se permite lo necesario para montar mocks y fixtures.
-    files: ['src/**/*.spec.ts', 'test/**/*.ts'],
+    files: TEST_FILES,
     rules: {
       'no-restricted-syntax': 'off',
       '@typescript-eslint/unbound-method': 'off',
