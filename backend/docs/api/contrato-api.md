@@ -135,7 +135,7 @@ erDiagram
 |-------|------|--------|
 | `id` | UUID | PK |
 | `fullName` | texto (120) | Obligatorio |
-| `email` | texto | Único. Si el correo ya existe, se reutiliza el cliente y se actualizan nombre y teléfono |
+| `email` | texto | Único y normalizado (sin espacios, en minúsculas): es la identidad del cliente. Si ya existe, se reutiliza el cliente y se actualizan nombre y teléfono |
 | `phone` | texto (20) | Obligatorio |
 
 **`Transaction`**
@@ -143,7 +143,7 @@ erDiagram
 | Campo | Tipo | Reglas |
 |-------|------|--------|
 | `id` | UUID | PK. Es el "número de transacción" que ve el cliente |
-| `reference` | texto | Único. Generado por el backend; se envía a la pasarela y entra en la firma |
+| `reference` | texto | Único. `TX-` + el id sin guiones y en mayúsculas (`TX-0192…`): deriva del id, así que nunca se repite. Se envía a la pasarela y entra en la firma |
 | `status` | enum | `PENDING`, `APPROVED`, `DECLINED`, `VOIDED`, `ERROR` |
 | `quantity` | entero | `1..10` |
 | `unitPriceInCents` | entero | Precio del producto **copiado** al crear la transacción |
@@ -193,7 +193,7 @@ Todo en inglés. En Prisma, modelos en `PascalCase` singular y campos en `camelC
 | `DeliveryStatus` (enum) | `delivery_status` | `PENDING_PAYMENT`, `ASSIGNED`… |
 
 - Índices y claves foráneas con los nombres que genera Prisma: `transactions_product_id_idx`, `transactions_product_id_fkey`…
-- Identificadores **UUID v7** (ordenados por tiempo, mejores para los índices) y fechas `TIMESTAMPTZ(3)`.
+- Identificadores **UUID v7** (ordenados por tiempo, mejores para los índices) y fechas `TIMESTAMPTZ(3)`. Los genera la API (`IdGeneratorPort`) al crear cada entidad, así el dominio tiene el id antes de persistir; el seed usa ids fijos.
 - El esquema está en `backend/prisma/schema.prisma`. **Las migraciones se generan siempre con `pnpm db:migrate --name <cambio>`**; nunca se escriben ni editan a mano.
 
 ### Datos iniciales (seed)
@@ -384,7 +384,7 @@ Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casilla
 | `quantity` | Entero `1..10` |
 | `customer.fullName` | 3–120 caracteres |
 | `customer.email` | Email válido |
-| `customer.phone` | 7–20 dígitos |
+| `customer.phone` | 7–20 dígitos; los espacios se ignoran (`300 123 4567` es válido) |
 | `delivery.recipientName`, `delivery.phone` | Igual que los del cliente |
 | `delivery.addressLine1` | 5–200 caracteres |
 | `delivery.addressLine2`, `delivery.postalCode` | Opcionales |
@@ -392,11 +392,22 @@ Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casilla
 
 **201:** `TransactionResponse` (ver abajo) con `status: "PENDING"` y `paymentSubmitted: false`.
 
+Comportamiento:
+
+- **Todavía no se cobra:** solo se abre la compra. El cobro ocurre en `POST /api/transactions/:id/payment`.
+- **Los montos los calcula el backend** con el precio vigente del producto y las tarifas configuradas. La petición no los incluye; si los envía, responde 400 (campo no permitido).
+- **Orden de comprobación:** formato (400) → reglas del dominio → producto (404) → stock (409). Si el producto no existe o está agotado, el cliente no se registra.
+- **Cliente:** se identifica por su email normalizado (`Ana@Example.com` = `ana@example.com`). Si ya existe, se reutiliza y se actualizan nombre y teléfono.
+- **Entrega:** se crea junto con la transacción, en la misma escritura atómica, en estado `PENDING_PAYMENT`. Los opcionales vacíos se guardan como `null`.
+- **Textos:** se recortan los espacios de los extremos antes de validar, así que `"   "` no cuenta como un nombre.
+- **Stock:** crear la transacción no descuenta unidades. El stock solo cambia al aprobarse el pago.
+
 | Error | HTTP | Cuándo |
 |-------|------|--------|
 | `INVALID_REQUEST` | 400 | Formato inválido |
 | `PRODUCT_NOT_FOUND` | 404 | El producto no existe |
 | `OUT_OF_STOCK` | 409 | `quantity` mayor que el stock |
+| `DB_QUERY_FAILED` | 500 | La base de datos no responde |
 
 ### `POST /api/transactions/:id/payment`
 
@@ -448,8 +459,8 @@ Si la pasarela no responde durante la sincronización, **no es un error**: se de
 
 ```json
 {
-  "id": "0e6f7a52-3d44-4c0b-8a55-6c1f2d3e4b5a",
-  "reference": "TX-20260925-8F3K2Q",
+  "id": "0192f3a8-5c1e-7b2d-9a4f-6e8c1d2b3a45",
+  "reference": "TX-0192F3A85C1E7B2D9A4F6E8C1D2B3A45",
   "status": "APPROVED",
   "statusMessage": null,
   "paymentSubmitted": true,
@@ -457,15 +468,15 @@ Si la pasarela no responde durante la sincronización, **no es un error**: se de
   "product": {
     "id": "01920000-0000-7000-8000-000000000001",
     "name": "Audífonos inalámbricos",
-    "imageUrl": "/images/products/headphones.webp"
+    "imageUrl": "/images/products/wireless-headphones.webp"
   },
   "amounts": {
     "currency": "COP",
-    "unitPriceInCents": 15000000,
-    "productAmountInCents": 15000000,
+    "unitPriceInCents": 18990000,
+    "productAmountInCents": 18990000,
     "baseFeeInCents": 250000,
     "deliveryFeeInCents": 800000,
-    "totalInCents": 16050000
+    "totalInCents": 20040000
   },
   "customer": { "fullName": "Ana Gómez", "email": "ana@example.com" },
   "delivery": {
@@ -475,10 +486,12 @@ Si la pasarela no responde durante la sincronización, **no es un error**: se de
     "city": "Medellín",
     "region": "Antioquia"
   },
-  "createdAt": "2026-09-25T15:04:05.000Z",
-  "finalizedAt": "2026-09-25T15:04:09.000Z"
+  "createdAt": "2026-09-26T15:04:05.000Z",
+  "finalizedAt": "2026-09-26T15:04:09.000Z"
 }
 ```
+
+Tras `POST /api/transactions` la respuesta tiene la misma forma con `status: "PENDING"`, `paymentSubmitted: false`, `delivery.status: "PENDING_PAYMENT"` y `finalizedAt: null`.
 
 `gatewayTransactionId` no se expone: es un detalle interno de la integración.
 
@@ -487,6 +500,8 @@ Si la pasarela no responde durante la sincronización, **no es un error**: se de
 | `code` | HTTP | Endpoints |
 |--------|------|-----------|
 | `INVALID_REQUEST` | 400 | Todos |
+| `INVALID_QUANTITY` | 422 | Protección del dominio (`Quantity`). La validación HTTP es más estricta y lo intercepta antes con un 400 |
+| `INVALID_EMAIL` | 422 | Protección del dominio (`Email`). La validación HTTP es más estricta y lo intercepta antes con un 400 |
 | `PRODUCT_NOT_FOUND` | 404 | `GET /products/:id`, `POST /transactions` |
 | `TRANSACTION_NOT_FOUND` | 404 | `POST /transactions/:id/payment`, `GET /transactions/:id` |
 | `OUT_OF_STOCK` | 409 | `POST /transactions`, `POST /transactions/:id/payment` |
