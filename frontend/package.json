@@ -18,6 +18,8 @@
     "typecheck": "tsc -b",
     "test": "jest --selectProjects unit",
     "test:unit": "jest --selectProjects unit",
+    "test:integration": "jest --selectProjects integration",
+    "test:all": "jest",
     "test:cov": "jest --selectProjects unit --coverage",
     "test:watch": "jest --selectProjects unit --watch"
   },
