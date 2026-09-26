@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
-import { Trim, TrimToUndefined } from './transforms';
+import { RemoveSpaces, Trim, TrimToUndefined } from './transforms';
 
 class Sample {
   @Trim()
@@ -8,6 +8,9 @@ class Sample {
 
   @TrimToUndefined()
   optional?: unknown;
+
+  @RemoveSpaces()
+  compact?: unknown;
 }
 
 const transform = (plain: Record<string, unknown>) =>
@@ -38,5 +41,17 @@ describe('TrimToUndefined', () => {
 
   it('no toca valores que no son texto', () => {
     expect(transform({ optional: null }).optional).toBeNull();
+  });
+});
+
+describe('RemoveSpaces', () => {
+  it('quita todos los espacios, también los internos', () => {
+    expect(transform({ compact: ' 300 123\t4567 ' }).compact).toBe(
+      '3001234567',
+    );
+  });
+
+  it('no toca valores que no son texto', () => {
+    expect(transform({ compact: 3001234567 }).compact).toBe(3001234567);
   });
 });

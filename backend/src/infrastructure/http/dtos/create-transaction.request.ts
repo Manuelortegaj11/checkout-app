@@ -20,7 +20,7 @@ import type {
 } from '@application/dtos/transaction/create-transaction.input';
 import { MAX_QUANTITY_PER_PURCHASE } from '@domain/constants/transaction.constants';
 import type { DeliveryAddress } from '@domain/entities/delivery.entity';
-import { Trim, TrimToUndefined } from './transforms';
+import { RemoveSpaces, Trim, TrimToUndefined } from './transforms';
 
 const PHONE_PATTERN = /^\d{7,20}$/;
 const PHONE_MESSAGE = '$property must contain 7 to 20 digits';
@@ -38,8 +38,12 @@ export class CustomerRequest implements CustomerInput {
   @MaxLength(254)
   email!: string;
 
-  @ApiProperty({ pattern: PHONE_PATTERN.source, example: '3001234567' })
-  @Trim()
+  @ApiProperty({
+    description: 'Dígitos; los espacios se ignoran',
+    pattern: PHONE_PATTERN.source,
+    example: '3001234567',
+  })
+  @RemoveSpaces()
   @Matches(PHONE_PATTERN, { message: PHONE_MESSAGE })
   phone!: string;
 }
@@ -51,8 +55,12 @@ export class DeliveryRequest implements DeliveryAddress {
   @Length(3, 120)
   recipientName!: string;
 
-  @ApiProperty({ pattern: PHONE_PATTERN.source, example: '3001234567' })
-  @Trim()
+  @ApiProperty({
+    description: 'Dígitos; los espacios se ignoran',
+    pattern: PHONE_PATTERN.source,
+    example: '3001234567',
+  })
+  @RemoveSpaces()
   @Matches(PHONE_PATTERN, { message: PHONE_MESSAGE })
   phone!: string;
 

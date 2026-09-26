@@ -73,13 +73,17 @@ describe('TransactionController', () => {
       await post(validBody()).expect(201, transactionOutput);
     });
 
-    it('entrega al caso de uso los textos sin espacios sobrantes y los opcionales vacíos como ausentes', async () => {
+    it('entrega al caso de uso los textos sin espacios sobrantes, el teléfono solo con dígitos y los opcionales vacíos como ausentes', async () => {
       createTransaction.execute.mockReturnValue(okAsync(transactionOutput));
       const body = validBody();
 
       await post({
         ...body,
-        customer: { ...body.customer, email: '  ana@example.com  ' },
+        customer: {
+          ...body.customer,
+          email: '  ana@example.com  ',
+          phone: '300 123 4567',
+        },
         delivery: { ...body.delivery, city: ' Medellín ', addressLine2: '   ' },
       }).expect(201);
 
@@ -87,6 +91,7 @@ describe('TransactionController', () => {
         ReturnType<typeof validBody>,
       ];
       expect(input.customer.email).toBe('ana@example.com');
+      expect(input.customer.phone).toBe('3001234567');
       expect(input.delivery.city).toBe('Medellín');
       expect(input.delivery.addressLine2).toBeUndefined();
     });
