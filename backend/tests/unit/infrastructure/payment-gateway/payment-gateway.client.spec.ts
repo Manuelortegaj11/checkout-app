@@ -36,6 +36,32 @@ describe('PaymentGatewayHttpClient', () => {
     fetchMock.mockRestore();
   });
 
+  describe('getPublicSettings', () => {
+    it('entrega la URL base y la llave pública, sin consultar la pasarela', () => {
+      expect(clientWith('https://gateway.test/v1').getPublicSettings()).toEqual(
+        {
+          baseUrl: 'https://gateway.test/v1',
+          publicKey: 'pub_test_abc123',
+        },
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('quita la barra final de la URL base', () => {
+      expect(
+        clientWith('https://gateway.test/v1//').getPublicSettings().baseUrl,
+      ).toBe('https://gateway.test/v1');
+    });
+
+    it('nunca expone el secreto de integridad', () => {
+      expect(
+        JSON.stringify(
+          clientWith('https://gateway.test/v1').getPublicSettings(),
+        ),
+      ).not.toContain(INTEGRITY_SECRET);
+    });
+  });
+
   describe('getAcceptanceContracts', () => {
     it('consulta el comercio con la llave pública y devuelve sus contratos', async () => {
       fetchMock.mockResolvedValue(jsonResponse(aMerchantResponse()));

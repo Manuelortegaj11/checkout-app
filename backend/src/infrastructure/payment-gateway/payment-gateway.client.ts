@@ -4,6 +4,7 @@ import {
   PAYMENT_GATEWAY,
   type AcceptanceContracts,
   type PaymentGatewayPort,
+  type PaymentGatewayPublicSettings,
   type PaymentRequest,
 } from '@application/ports/payment-gateway.port';
 import type { EnvironmentVariables } from '@config/env.validation';
@@ -45,6 +46,10 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
       config.get('PAYMENT_GATEWAY_POLL_TIMEOUT_MS', { infer: true }) /
         this.pollIntervalMs,
     );
+  }
+
+  getPublicSettings(): PaymentGatewayPublicSettings {
+    return { baseUrl: this.baseUrl, publicKey: this.publicKey };
   }
 
   getAcceptanceContracts(): ResultAsync<AcceptanceContracts, AppError> {

@@ -1,5 +1,8 @@
 import type { CheckoutConfigOutput } from '@application/dtos/checkout/checkout-config.output';
-import type { AcceptanceContracts } from '@application/ports/payment-gateway.port';
+import type {
+  AcceptanceContracts,
+  PaymentGatewayPublicSettings,
+} from '@application/ports/payment-gateway.port';
 import { STORE_CURRENCY } from '@domain/constants/currency.constants';
 import type { CheckoutFees } from '@domain/rules/pricing.rules';
 
@@ -18,6 +21,13 @@ export const anAcceptanceContracts = (): AcceptanceContracts => ({
     url: 'https://gateway.test/docs/personal-data-auth.pdf',
   },
 });
+
+/** Datos públicos de la pasarela para tokenizar la tarjeta en el navegador. */
+export const aPaymentGatewayPublicSettings =
+  (): PaymentGatewayPublicSettings => ({
+    baseUrl: 'https://gateway.test/v1',
+    publicKey: 'pub_test_abc123',
+  });
 
 /** Tarifas y contratos tal como los devuelve el caso de uso de configuración. */
 export const aCheckoutConfigOutput = (): CheckoutConfigOutput => ({
