@@ -75,8 +75,9 @@ Reglas:
 ```text
 frontend/
 ├── index.html                          # Punto de entrada HTML de Vite
-├── vite.config.ts                      # Plugin de React, alias y servidor de desarrollo
-├── jest.config.ts                      # Jest + jsdom, alias y umbral de cobertura
+├── vite.config.ts                      # React + Tailwind, alias y proxy de /api al backend
+├── eslint.config.js                    # Reglas de la arquitectura (ver Regla de dependencias)
+├── jest.config.ts                      # Un proyecto por nivel de prueba, jsdom y umbral de cobertura
 ├── public/
 │   └── images/                         # Productos en WebP y logos SVG de las marcas de tarjeta
 ├── src/
@@ -141,6 +142,9 @@ app ──► features ──► shared
 - Una feature importa otra **solo a través de su `index.ts`**, nunca de sus archivos internos.
 - `app/` solo compone: elige qué feature mostrar según el paso. Sin lógica de negocio.
 - Los componentes no importan `shared/api/`: el acceso a datos pasa siempre por un thunk.
+- Entre carpetas se importa con alias (`@app`, `@features`, `@shared`, `@store`); dentro de una feature, con rutas relativas a sus vecinos. Subir dos niveles (`../../`) es error de lint.
+
+`eslint.config.js` convierte estas reglas en errores, tanto por alias como por ruta relativa, y añade las de seguridad: `import.meta.env` solo en `shared/config/env.ts`, `fetch` solo en `shared/api/http-client.ts`, nada de `localStorage` ni `sessionStorage` directos (se persiste solo con redux-persist), `cardNumber` y `cvc` prohibidos en el store y en los slices, y nunca `dangerouslySetInnerHTML`.
 
 ### Convenciones de nombres
 
@@ -221,7 +225,8 @@ React no optimiza imágenes por sí solo: la optimización se hace al preparar l
 
 ## Seguridad
 
-- Vite incrusta en el bundle toda variable `VITE_*`, así que es **pública**. Solo van la URL del backend, la URL de tokenización y la **llave pública**. Nunca una llave privada.
+- La SPA llama a la API en `/api`, en su mismo origen: en local la reenvía el proxy de Vite (`vite.config.ts`) y en producción Nginx. Así no hace falta CORS ni la URL del backend en el bundle.
+- Vite incrusta en el bundle toda variable `VITE_*`, así que es **pública**. Solo van la URL de tokenización y la **llave pública** de la pasarela. Nunca una llave privada.
 - Nunca usar `dangerouslySetInnerHTML`.
 - El número de tarjeta y el CVC no se loguean, no se guardan y no se envían al backend: solo a la tokenización.
 - Las cabeceras de seguridad (CSP, HSTS…) las pone Nginx.
@@ -273,13 +278,10 @@ No hay e2e en el frontend: el recorrido real contra la API y el Sandbox lo cubre
 - [ ] Ninguna dependencia es un framework (Next.js, Remix, Gatsby…).
 - [ ] El nombre comercial de la pasarela no aparece en el código.
 
-Comprobación rápida desde `frontend/`:
+Comprobación automática desde `frontend/`:
 
 ```bash
-grep -rnE "fetch\(|shared/api" src/features/*/components src/app
-grep -rnE "from '.*(features|store|app)/" src/shared
-grep -rnE "cardNumber|cvc" src/store src/features/*/*.slice.ts
-grep -rln "import.meta.env" src | grep -v "shared/config/env.ts"
+pnpm typecheck && pnpm lint && pnpm test:cov
 ```
 
-Las cuatro deben devolver cero resultados. En el store de la tarjeta solo existen `token`, `brand` y `last4`.
+`pnpm lint` convierte en errores las reglas de este checklist que se pueden comprobar en el código (capas, componentes sin `shared/api`, `import.meta.env`, `fetch`, almacenamiento del navegador y datos de tarjeta en el store) y falla también con cualquier aviso. En el store de la tarjeta solo existen `token`, `brand` y `last4`.
