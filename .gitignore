@@ -3,8 +3,6 @@ node_modules/
 
 # Builds
 dist/
-.next/
-out/
 build/
 
 # Tests

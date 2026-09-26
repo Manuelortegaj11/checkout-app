@@ -18,7 +18,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | Next.js + TypeScript como **SPA** (`output: 'export'`), Redux Toolkit + redux-persist, Tailwind CSS |
+| Frontend | **ReactJS** + TypeScript como **SPA** empaquetada con **Vite**, Redux Toolkit + redux-persist, Tailwind CSS |
 | Backend | NestJS 11 + TypeScript (CommonJS), Prisma 7, PostgreSQL 17 (Docker), neverthrow |
 | Tests | Jest en ambos (+ React Testing Library en el frontend) |
 | Deploy | VPS o EC2: Nginx (estático + proxy `/api`), PM2, HTTPS con Certbot |
@@ -26,7 +26,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 ## Estructura del repo
 
 ```
-frontend/   Next.js SPA
+frontend/   SPA con ReactJS + Vite
 backend/    NestJS API (hexagonal)
 deploy/     nginx.conf, ecosystem.config.js, deploy.sh
 README.md   Único README de la entrega
@@ -34,8 +34,11 @@ README.md   Único README de la entrega
 
 ## Frontend
 
-- Next.js se usa **solo como SPA de React**: componentes cliente, `output: 'export'`. Prohibido usar API routes, Server Actions o SSR para lógica de negocio; toda la API vive en `backend/`.
-- Estructura en `frontend/src/`: `app/` (solo rutas y composición) → `features/` (`products`, `checkout`, `transaction`) → `shared/` (`ui`, `lib`, `api`), más `store/`. `shared/` no importa nada de `features/`, `store/` ni `app/`.
+- **Solo ReactJS.** El enunciado solo permite React o Vue y prohíbe expresamente Next.js y cualquier otro framework (Remix, Gatsby, React Router en modo framework…). Vite es solo la herramienta de build. Toda la API vive en `backend/`.
+- Estructura en `frontend/src/`: `main.tsx` → `app/` (solo composición) → `features/` (`products`, `checkout`, `transaction`) → `shared/` (`ui`, `lib`, `api`, `config`), más `store/`. `shared/` no importa nada de `features/`, `store/` ni `app/`.
+- **Sin router:** la pantalla visible se deriva solo de `checkout.step`, así una URL nunca contradice el estado persistido.
+- Variables de entorno `VITE_*` (son públicas: van dentro del bundle). Solo se leen en `shared/config/env.ts`.
+- Tests con **Jest** (`ts-jest` + `jsdom`), no con Vitest: el enunciado exige Jest.
 - Estado global con Redux Toolkit siguiendo Flux: vista → `dispatch` → thunk → servicio (`shared/api`) → reducer → selector → vista. Los componentes nunca llaman a `fetch`.
 - El checkout es una máquina de pasos en el store (`PRODUCT` → `PAYMENT_FORM` → `SUMMARY` → `PROCESSING` → `RESULT` → `PRODUCT`). `redux-persist` solo sobre `checkout`, para sobrevivir a un refresh; nunca se persisten el número de tarjeta ni el CVC.
 - Mobile first. Referencia mínima: iPhone SE (2020), 375 px de ancho. Sin desbordamientos; flexbox/grid. Imágenes en WebP/SVG con dimensiones reservadas.
