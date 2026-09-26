@@ -47,9 +47,12 @@ README.md   Único README de la entrega
 - Capas en `backend/src/`:
   - `shared/`: `Result` (neverthrow) y `AppError`. No importa ninguna capa.
   - `domain/`: constants, value objects, rules, entities y errores. Solo importa `shared`.
-  - `application/`: **ports** (interfaces), DTOs y casos de uso. Sin decoradores de NestJS.
-  - `infrastructure/`: **adapters** (controladores HTTP, repositorios Prisma, cliente de la pasarela) y módulos NestJS.
-- Regla de dependencias: `infrastructure → application → domain → shared`. `domain` y `application` nunca importan `@nestjs/*`, `@prisma/client` ni `class-validator`.
+  - `application/`: **ports** (interfaces + token `Symbol`), DTOs y casos de uso (`implements UseCase<Input, Output>`). Sin decoradores de NestJS.
+  - `infrastructure/`: **adapters** (controladores HTTP, repositorios Prisma, cliente de la pasarela) y el cableado de NestJS.
+  - `config/`: validación de `process.env`. Solo la lee `infrastructure`.
+- Regla de dependencias: `infrastructure → application → domain → shared`. `domain` y `application` nunca importan frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`), `@config` ni `@infrastructure`.
+- Imports entre carpetas con alias: `@shared/*`, `@domain/*`, `@application/*`, `@infrastructure/*`, `@config/*`. Nunca `../../`.
+- Inyección de dependencias solo en infraestructura: los adapters exportan `*_PROVIDER` bajo el token de su port; los casos de uso se registran con `useCaseProvider()`. Módulos por contexto en `infrastructure/modules/<feature>/`: `repositories`, `adapters`, `use-cases` y el módulo con los controladores. Un provider nunca se registra dos veces: se importa el `repositories.module` del otro contexto.
 - Los controladores solo validan (DTOs con class-validator), llaman al caso de uso y salen del riel. Cero lógica de negocio en controladores.
 - **Railway Oriented Programming** con `neverthrow`: ports y casos de uso devuelven `ResultAsync<T, AppError>` y no lanzan excepciones por errores de negocio. Solo los adapters convierten excepciones en `err`, y solo la capa HTTP convierte `err` en código HTTP.
 - Referencia completa: `backend/docs/arquitectura/hexagonal-ddd-rop.md`. Para crear o modificar código en `backend/src`, usa la skill `/backend-feature`.
@@ -58,7 +61,7 @@ README.md   Único README de la entrega
 - La base de datos se puebla con un seed de productos ficticios; no hay endpoints para crear productos.
 - Documentar la API con Swagger (`@nestjs/swagger`). Seguridad: helmet, CORS restringido, rate limiting.
 - **NestJS 11, no 12:** NestJS 12 solo se distribuye como ESM y usa Vitest; el enunciado exige Jest, que con ESM sigue siendo experimental. No actualizar a 12.
-- ESLint hace cumplir la arquitectura: falla si `shared`, `domain` o `application` importan frameworks o capas exteriores, o si usan `throw`. No desactivar esas reglas; corregir el código.
+- ESLint hace cumplir la arquitectura: falla si `shared`, `domain` o `application` importan frameworks, `config` o capas exteriores (por alias o por ruta relativa), si usan `throw`, o si un import sube más de un nivel. No desactivar esas reglas; corregir el código.
 - Contrato de la API y modelo de datos: `backend/docs/api/contrato-api.md`.
 
 ## Tests
