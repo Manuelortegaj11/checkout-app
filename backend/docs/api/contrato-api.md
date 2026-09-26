@@ -524,9 +524,9 @@ Fecha de vencimiento futura y CVC de 3 dígitos.
 
 | Variable | Uso |
 |----------|-----|
-| `NEXT_PUBLIC_API_URL` | URL del backend |
-| `NEXT_PUBLIC_PAYMENT_GATEWAY_URL` | URL de la pasarela, solo para tokenizar |
-| `NEXT_PUBLIC_PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública |
+| `VITE_API_URL` | URL del backend |
+| `VITE_PAYMENT_GATEWAY_URL` | URL de la pasarela, solo para tokenizar |
+| `VITE_PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública |
 
 En el repositorio solo existen los `.env.example`, con los valores vacíos.
 
