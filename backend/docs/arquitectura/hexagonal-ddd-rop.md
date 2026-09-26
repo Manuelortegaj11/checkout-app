@@ -557,12 +557,10 @@ Cada capa tiene una única responsabilidad, y cada error tiene un tipo y un cód
 - [ ] Cada caso de uso tiene test del camino feliz y de cada rama de error.
 - [ ] El nombre comercial de la pasarela no aparece en el código.
 
-Comprobación rápida desde `backend/`:
+Comprobación automática desde `backend/`:
 
 ```bash
-grep -rnE "from '(@nestjs|@prisma/client|class-validator|class-transformer)" src/domain src/application
-grep -rnE "from '.*(application|infrastructure)/" src/domain
-grep -rn "throw " src/domain src/application
+pnpm typecheck && pnpm lint && pnpm test:cov
 ```
 
-Las tres deben devolver cero resultados.
+`eslint.config.mjs` convierte las reglas de este checklist en errores de lint: `shared`, `domain` y `application` no pueden importar frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`) ni capas exteriores, y no pueden usar `throw`. `test:cov` falla si la cobertura baja del 80%.
