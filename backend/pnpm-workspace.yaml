@@ -2,6 +2,10 @@
 allowBuilds:
   # Solo compila desde el código fuente si falta el binario precompilado.
   '@parcel/watcher': false
+  # Prisma: descarga el schema engine que ejecuta las migraciones.
+  '@prisma/engines': true
+  # Prisma: comprueba la versión de Node.
+  prisma: true
   # Telemetría de swagger-ui-dist.
   '@scarf/scarf': false
   # Solo verifica el binario nativo del resolver de Jest.

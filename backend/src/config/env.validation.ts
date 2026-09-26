@@ -16,6 +16,14 @@ export class EnvironmentVariables {
 
   @IsUrl({ require_tld: false, require_protocol: true })
   CORS_ORIGIN: string = 'http://localhost:3000';
+
+  /** Obligatoria: sin base de datos la API no arranca. */
+  @IsUrl({
+    require_tld: false,
+    require_protocol: true,
+    protocols: ['postgresql', 'postgres'],
+  })
+  DATABASE_URL!: string;
 }
 
 /**

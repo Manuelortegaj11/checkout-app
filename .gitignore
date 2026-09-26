@@ -10,6 +10,9 @@ build/
 # Tests
 coverage/
 
+# Cliente de Prisma generado (se regenera con `pnpm install`)
+backend/src/infrastructure/persistence/generated/
+
 # Variables de entorno
 .env
 .env.*

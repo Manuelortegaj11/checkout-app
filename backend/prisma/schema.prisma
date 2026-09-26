@@ -1,0 +1,112 @@
+// Modelo de datos del checkout. Diseño: docs/api/contrato-api.md
+//
+// Convención de nombres:
+// - Prisma: modelos en PascalCase singular, campos en camelCase.
+// - PostgreSQL: tablas en snake_case plural (@@map), columnas en snake_case (@map).
+// - Dinero siempre en centavos y enteros (*InCents).
+//
+// Cambios de esquema: editar este archivo y ejecutar `pnpm db:migrate --name <cambio>`.
+// Nunca escribir ni editar migraciones SQL a mano.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/infrastructure/persistence/generated/prisma"
+  // CommonJS sin extensión en los imports: lo que esperan NestJS 11, Jest y ts-node.
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  VOIDED
+  ERROR
+
+  @@map("transaction_status")
+}
+
+enum DeliveryStatus {
+  PENDING_PAYMENT
+  ASSIGNED
+  CANCELLED
+
+  @@map("delivery_status")
+}
+
+model Product {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  name         String        @db.VarChar(120)
+  description  String
+  priceInCents Int           @map("price_in_cents")
+  stock        Int
+  imageUrl     String        @map("image_url") @db.VarChar(255)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  transactions Transaction[]
+
+  @@map("products")
+}
+
+model Customer {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  fullName     String        @map("full_name") @db.VarChar(120)
+  email        String        @unique @db.VarChar(254)
+  phone        String        @db.VarChar(20)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  transactions Transaction[]
+
+  @@map("customers")
+}
+
+model Transaction {
+  id                   String            @id @default(uuid(7)) @db.Uuid
+  reference            String            @unique @db.VarChar(64)
+  status               TransactionStatus @default(PENDING)
+  productId            String            @map("product_id") @db.Uuid
+  customerId           String            @map("customer_id") @db.Uuid
+  quantity             Int
+  unitPriceInCents     Int               @map("unit_price_in_cents")
+  productAmountInCents Int               @map("product_amount_in_cents")
+  baseFeeInCents       Int               @map("base_fee_in_cents")
+  deliveryFeeInCents   Int               @map("delivery_fee_in_cents")
+  totalInCents         Int               @map("total_in_cents")
+  currency             String            @db.Char(3)
+  gatewayTransactionId String?           @unique @map("gateway_transaction_id") @db.VarChar(64)
+  paymentSubmittedAt   DateTime?         @map("payment_submitted_at") @db.Timestamptz(3)
+  statusMessage        String?           @map("status_message") @db.VarChar(255)
+  finalizedAt          DateTime?         @map("finalized_at") @db.Timestamptz(3)
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  product              Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  customer             Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  delivery             Delivery?
+
+  @@index([productId])
+  @@index([customerId])
+  @@index([status])
+  @@map("transactions")
+}
+
+model Delivery {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  transactionId String         @unique @map("transaction_id") @db.Uuid
+  status        DeliveryStatus @default(PENDING_PAYMENT)
+  recipientName String         @map("recipient_name") @db.VarChar(120)
+  phone         String         @db.VarChar(20)
+  addressLine1  String         @map("address_line1") @db.VarChar(200)
+  addressLine2  String?        @map("address_line2") @db.VarChar(200)
+  city          String         @db.VarChar(80)
+  region        String         @db.VarChar(80)
+  postalCode    String?        @map("postal_code") @db.VarChar(20)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  transaction   Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("deliveries")
+}
