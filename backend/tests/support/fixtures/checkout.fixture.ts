@@ -34,4 +34,5 @@ export const aCheckoutConfigOutput = (): CheckoutConfigOutput => ({
   currency: STORE_CURRENCY,
   ...CHECKOUT_FEES,
   acceptance: anAcceptanceContracts(),
+  paymentGateway: aPaymentGatewayPublicSettings(),
 });

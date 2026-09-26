@@ -1,6 +1,9 @@
 import { appError } from '@shared/errors/app-error';
 import { errAsync, okAsync } from '@shared/result';
-import { anAcceptanceContracts } from '@testing/fixtures/checkout.fixture';
+import {
+  anAcceptanceContracts,
+  aPaymentGatewayPublicSettings,
+} from '@testing/fixtures/checkout.fixture';
 import { mockCheckoutSettings } from '@testing/mocks/checkout-settings.mock';
 import { mockPaymentGateway } from '@testing/mocks/payment-gateway.mock';
 import { GetCheckoutConfigUseCase } from '@application/use-cases/checkout/get-checkout-config.use-case';
@@ -10,7 +13,7 @@ describe('GetCheckoutConfigUseCase', () => {
   const paymentGateway = mockPaymentGateway();
   const useCase = new GetCheckoutConfigUseCase(settings, paymentGateway);
 
-  it('combina las tarifas vigentes con los contratos de la pasarela', async () => {
+  it('combina las tarifas vigentes con los contratos y los datos públicos de la pasarela', async () => {
     paymentGateway.getAcceptanceContracts.mockReturnValue(
       okAsync(anAcceptanceContracts()),
     );
@@ -22,6 +25,7 @@ describe('GetCheckoutConfigUseCase', () => {
       baseFeeInCents: 250_000,
       deliveryFeeInCents: 800_000,
       acceptance: anAcceptanceContracts(),
+      paymentGateway: aPaymentGatewayPublicSettings(),
     });
   });
 

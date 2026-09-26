@@ -28,7 +28,7 @@ describe('Checkout (e2e)', () => {
     await app.close();
   });
 
-  it('GET /api/checkout/config devuelve las tarifas y los contratos vigentes de la pasarela', async () => {
+  it('GET /api/checkout/config devuelve las tarifas, los contratos vigentes y los datos públicos de la pasarela', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/checkout/config')
       .expect(200);
@@ -42,6 +42,16 @@ describe('Checkout (e2e)', () => {
       baseFeeInCents: Number(process.env.BASE_FEE_IN_CENTS ?? 250_000),
       deliveryFeeInCents: Number(process.env.DELIVERY_FEE_IN_CENTS ?? 800_000),
       acceptance: { endUserPolicy: contract, personalDataAuth: contract },
+      paymentGateway: {
+        // URL https sin barra final: el frontend le añade la ruta de tokenización.
+        baseUrl: expect.stringMatching(/^https:\/\/\S+[^/]$/) as unknown,
+        publicKey: expect.stringMatching(/^pub_/) as unknown,
+      },
     });
+
+    // El secreto de integridad firma los cobros: nunca sale del backend.
+    const integritySecret = process.env.PAYMENT_GATEWAY_INTEGRITY_SECRET ?? '';
+    expect(integritySecret).not.toBe('');
+    expect(JSON.stringify(response.body)).not.toContain(integritySecret);
   });
 });
