@@ -127,7 +127,7 @@ describe('Transaction', () => {
         .applyPaymentResult(aPaymentResult({ status: 'PENDING' }), FINALIZED_AT)
         ._unsafeUnwrap();
 
-      expect(awaiting.isAwaitingPaymentResult()).toBe(true);
+      expect(awaiting.pendingPaymentId()).toBe(GATEWAY_TRANSACTION_ID);
       expect(awaiting.gatewayTransactionId).toBe(GATEWAY_TRANSACTION_ID);
       expect(awaiting.toPlainObject()).toMatchObject({
         status: 'PENDING',
@@ -143,7 +143,8 @@ describe('Transaction', () => {
         ._unsafeUnwrap();
 
       expect(approved.status).toBe('APPROVED');
-      expect(approved.isAwaitingPaymentResult()).toBe(false);
+      expect(approved.pendingPaymentId()).toBeNull();
+      expect(approved.gatewayTransactionId).toBe(GATEWAY_TRANSACTION_ID);
       expect(approved.toPlainObject()).toMatchObject({
         gatewayTransactionId: GATEWAY_TRANSACTION_ID,
         statusMessage: null,
@@ -224,7 +225,7 @@ describe('Transaction', () => {
     });
   });
 
-  it('una transacción recién creada no espera ningún resultado', () => {
-    expect(aTransaction().isAwaitingPaymentResult()).toBe(false);
+  it('una transacción recién creada no tiene cobro pendiente', () => {
+    expect(aTransaction().pendingPaymentId()).toBeNull();
   });
 });

@@ -129,12 +129,14 @@ export class Transaction {
     return this.state.gatewayTransactionId;
   }
 
-  /** Hay un cobro en la pasarela cuyo resultado todavía no se conoce. */
-  isAwaitingPaymentResult(): boolean {
-    return (
-      this.state.status === TRANSACTION_STATUS.PENDING &&
-      this.state.gatewayTransactionId !== null
-    );
+  /**
+   * Id en la pasarela del cobro cuyo resultado todavía no se conoce, o `null`
+   * si no hay ninguno: aún no se envió o la compra ya tiene resultado.
+   */
+  pendingPaymentId(): string | null {
+    return this.state.status === TRANSACTION_STATUS.PENDING
+      ? this.state.gatewayTransactionId
+      : null;
   }
 
   /**
