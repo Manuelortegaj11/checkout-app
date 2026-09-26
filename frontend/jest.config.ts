@@ -40,6 +40,8 @@ const config: Config = {
     'src/**/*.{ts,tsx}',
     // Arranque: solo monta <App /> en el DOM.
     '!src/main.tsx',
+    // API pública de cada feature: solo re-exporta.
+    '!src/features/*/index.ts',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'text-summary', 'lcov'],
