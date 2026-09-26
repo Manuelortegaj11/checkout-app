@@ -3,7 +3,14 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { TransactionOutput } from '@application/dtos/transaction/transaction.output';
 import { CreateTransactionUseCase } from '@application/use-cases/transaction/create-transaction.use-case';
+import { GetTransactionUseCase } from '@application/use-cases/transaction/get-transaction.use-case';
+import { SubmitPaymentUseCase } from '@application/use-cases/transaction/submit-payment.use-case';
 import { outOfStock, productNotFound } from '@domain/errors/product.errors';
+import {
+  paymentAlreadySubmitted,
+  transactionNotFound,
+} from '@domain/errors/transaction.errors';
+import { paymentGatewayRejected } from '@infrastructure/payment-gateway/payment-gateway.errors';
 import { errAsync, okAsync } from '@shared/result';
 import { PRODUCT_ID } from '@testing/fixtures/product.fixture';
 import { TRANSACTION_ID } from '@testing/fixtures/transaction.fixture';
@@ -41,12 +48,16 @@ const transactionOutput = {
 describe('TransactionController', () => {
   let app: NestExpressApplication;
   const createTransaction = { execute: jest.fn() };
+  const submitPayment = { execute: jest.fn() };
+  const getTransaction = { execute: jest.fn() };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [TransactionController],
       providers: [
         { provide: CreateTransactionUseCase, useValue: createTransaction },
+        { provide: SubmitPaymentUseCase, useValue: submitPayment },
+        { provide: GetTransactionUseCase, useValue: getTransaction },
       ],
     }).compile();
 
@@ -205,6 +216,137 @@ describe('TransactionController', () => {
         code: 'OUT_OF_STOCK',
         message: `Product ${PRODUCT_ID} has 1 units available, 2 requested`,
       });
+    });
+  });
+
+  describe('POST /api/transactions/:id/payment', () => {
+    const paymentBody = () => ({
+      cardToken: 'tok_stagtest_5113_abc',
+      installments: 1,
+      acceptanceToken: 'end-user-policy-token',
+      personalDataAuthToken: 'personal-data-auth-token',
+    });
+    const pay = (body: unknown, id = TRANSACTION_ID) =>
+      request(app.getHttpServer())
+        .post(`/api/transactions/${id}/payment`)
+        .send(body as object);
+
+    it('responde 200 con el resultado del cobro y entrega el id al caso de uso', async () => {
+      const approved = { ...transactionOutput, status: 'APPROVED' };
+      submitPayment.execute.mockReturnValue(okAsync(approved));
+
+      await pay(paymentBody()).expect(200, approved);
+      expect(submitPayment.execute).toHaveBeenCalledWith({
+        transactionId: TRANSACTION_ID,
+        ...paymentBody(),
+      });
+    });
+
+    it('un pago rechazado responde 200 con status DECLINED, no es un error HTTP', async () => {
+      const declined = {
+        ...transactionOutput,
+        status: 'DECLINED',
+        statusMessage: 'La transacción fue rechazada (Sandbox)',
+      };
+      submitPayment.execute.mockReturnValue(okAsync(declined));
+
+      await pay(paymentBody()).expect(200, declined);
+    });
+
+    it('rechaza el número de tarjeta: el backend nunca lo recibe', async () => {
+      const response = await pay({
+        ...paymentBody(),
+        cardNumber: '4242424242424242',
+      }).expect(400);
+
+      expect(response.body).toMatchObject({
+        details: [
+          {
+            field: 'cardNumber',
+            message: 'property cardNumber should not exist',
+          },
+        ],
+      });
+      expect(submitPayment.execute).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        'installments fuera de rango',
+        { installments: 37 },
+        'installments must not be greater than 36',
+      ],
+      [
+        'falta el token de aceptación',
+        { acceptanceToken: '' },
+        'acceptanceToken should not be empty',
+      ],
+      [
+        'el token de tarjeta está vacío',
+        { cardToken: '   ' },
+        'cardToken should not be empty',
+      ],
+    ])('responde 400 si %s', async (_case, override, message) => {
+      const response = await pay({ ...paymentBody(), ...override }).expect(400);
+
+      expect(response.body).toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: expect.arrayContaining([
+          expect.objectContaining({ message }),
+        ]) as unknown,
+      });
+      expect(submitPayment.execute).not.toHaveBeenCalled();
+    });
+
+    it('responde 400 si el id no es un UUID', async () => {
+      await pay(paymentBody(), 'abc').expect(400);
+      expect(submitPayment.execute).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [transactionNotFound(TRANSACTION_ID), 404],
+      [paymentAlreadySubmitted(TRANSACTION_ID), 409],
+      [paymentGatewayRejected({ status: 422 }), 502],
+    ])('traduce %o a HTTP %i', async (error, status) => {
+      submitPayment.execute.mockReturnValue(errAsync(error));
+
+      await pay(paymentBody()).expect(status, {
+        code: error.code,
+        message: error.message,
+      });
+    });
+  });
+
+  describe('GET /api/transactions/:id', () => {
+    it('responde 200 con la transacción', async () => {
+      getTransaction.execute.mockReturnValue(okAsync(transactionOutput));
+
+      await request(app.getHttpServer())
+        .get(`/api/transactions/${TRANSACTION_ID}`)
+        .expect(200, transactionOutput);
+      expect(getTransaction.execute).toHaveBeenCalledWith({
+        transactionId: TRANSACTION_ID,
+      });
+    });
+
+    it('responde 404 TRANSACTION_NOT_FOUND si no existe', async () => {
+      getTransaction.execute.mockReturnValue(
+        errAsync(transactionNotFound(TRANSACTION_ID)),
+      );
+
+      await request(app.getHttpServer())
+        .get(`/api/transactions/${TRANSACTION_ID}`)
+        .expect(404, {
+          code: 'TRANSACTION_NOT_FOUND',
+          message: `Transaction ${TRANSACTION_ID} not found`,
+        });
+    });
+
+    it('responde 400 si el id no es un UUID', async () => {
+      await request(app.getHttpServer())
+        .get('/api/transactions/abc')
+        .expect(400);
+      expect(getTransaction.execute).not.toHaveBeenCalled();
     });
   });
 });
