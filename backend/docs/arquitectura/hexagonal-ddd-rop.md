@@ -115,13 +115,13 @@ graph TB
 ```text
 backend/
 ├── prisma.config.ts                    # CLI de Prisma: esquema, migraciones, seed y DATABASE_URL
+├── jest.config.ts                      # Un proyecto de Jest por nivel de prueba: unit, integration, e2e
 ├── prisma/
 │   ├── schema.prisma                   # Modelo de datos (nombres en inglés, tablas snake_case)
 │   ├── migrations/                     # Generadas SOLO con `pnpm db:migrate --name <cambio>`
 │   └── seed.ts                         # Productos ficticios (idempotente)
 ├── src/
 │   ├── main.ts                         # Bootstrap HTTP: helmet, CORS, ValidationPipe, Swagger
-│   ├── app.module.ts
 │   ├── config/                         # Lectura y validación de process.env
 │   │
 │   ├── shared/                         # KERNEL: no importa ninguna capa
@@ -138,7 +138,7 @@ backend/
 │   ├── application/                    # ORQUESTACIÓN: importa domain y shared
 │   │   ├── ports/                      # use-case, <feature>.repository, payment-gateway, checkout-settings, id-generator, clock
 │   │   ├── dtos/<feature>/             # <accion>.input.ts · <feature>.output.ts
-│   │   └── use-cases/<feature>/        # <accion>.use-case.ts · <accion>.use-case.spec.ts · <feature>.mapper.ts
+│   │   └── use-cases/<feature>/        # <accion>.use-case.ts · <feature>.mapper.ts
 │   │
 │   └── infrastructure/                 # ADAPTERS: implementan los ports
 │       ├── persistence/
@@ -162,6 +162,7 @@ backend/
 │       │   ├── filters/                # all-exceptions.filter.ts: formato único { code, message }
 │       │   └── configure-app.ts        # Prefijo, helmet, CORS, validación, Swagger
 │       └── modules/                    # CABLEADO de NestJS, un directorio por contexto
+│           ├── app.module.ts           # Módulo raíz: módulos globales + <feature>.module.ts
 │           ├── use-case.provider.ts    # useCaseProvider(): registra casos de uso sin decoradores
 │           ├── persistence/            # persistence.module.ts: PrismaService (global)
 │           ├── health/                 # health.module.ts
@@ -173,11 +174,17 @@ backend/
 │               ├── <feature>.adapters.module.ts       # Otros adapters de salida (p. ej. pasarela)
 │               ├── <feature>.use-cases.module.ts      # *_USE_CASE_PROVIDER con useCaseProvider
 │               └── <feature>.module.ts                # Controladores; importa el de use-cases
-│   │
-│   └── testing/                        # SOLO para tests (fuera del build y de la cobertura)
-│       ├── fixtures/                   # aProduct(), aProductRow()…: datos válidos con overrides
-│       └── mocks/                      # mockProductRepository()…: dobles de los ports
-└── test/                               # *.e2e-spec.ts contra PostgreSQL real (requiere migraciones y seed)
+│
+└── tests/                              # TODAS las pruebas, fuera de src/ (no entran al build)
+    ├── unit/                           # *.spec.ts: espejo de src/, una pieza aislada con dobles
+    ├── integration/                    # *.int-spec.ts: NestJS o varias piezas reales, sin servicios externos
+    │   ├── http/                       # configureApp y controladores con supertest
+    │   └── modules/                    # Cableado de cada contexto y useCaseProvider
+    ├── e2e/                            # *.e2e-spec.ts: la API contra PostgreSQL y el Sandbox reales
+    └── support/                        # @testing/*: solo lo importan las pruebas
+        ├── fixtures/                   # aProduct(), aProductRow(), aTransactionOutput()…: datos válidos con overrides
+        ├── mocks/                      # mockProductRepository(), mockUseCase()…: dobles de ports y casos de uso
+        └── helpers/                    # validateRequest(): transforma y valida un request DTO como el ValidationPipe
 ```
 
 Módulos del negocio (`<feature>`): `product` (inventario), `customer`, `transaction` y `delivery`.
@@ -185,7 +192,7 @@ Módulos del negocio (`<feature>`): `product` (inventario), `customer`, `transac
 ### Convenciones de nombres
 
 - Archivos en `kebab-case` con sufijo de rol: `.entity.ts`, `.vo.ts`, `.rules.ts`, `.errors.ts`, `.port.ts`, `.use-case.ts`, `.prisma.repository.ts`, `.controller.ts`, `.request.ts`, `.response.ts`, `.repositories.module.ts`, `.adapters.module.ts`, `.use-cases.module.ts`, `.module.ts`.
-- Tests unitarios `*.spec.ts` junto al archivo que prueban.
+- Pruebas en `tests/`, una carpeta por nivel: `*.spec.ts` en `tests/unit/` con la misma ruta que el archivo en `src/`, `*.int-spec.ts` en `tests/integration/` y `*.e2e-spec.ts` en `tests/e2e/` (ver [Pruebas por nivel](#pruebas-por-nivel)).
 - Clases en `PascalCase`, funciones y variables en `camelCase`, constantes del dominio en `UPPER_SNAKE_CASE`.
 - Tokens de inyección de los ports: `export const PRODUCT_REPOSITORY = Symbol('PRODUCT_REPOSITORY')`, junto a la interfaz.
 - Providers: `<NOMBRE>_PROVIDER` (`PRODUCT_REPOSITORY_PROVIDER`, `CREATE_TRANSACTION_USE_CASE_PROVIDER`).
@@ -209,7 +216,7 @@ constants, errors  ──►  value-objects  ──►  rules, entities
 | `domain` | `shared` | `application`, `infrastructure`, `config`, frameworks |
 | `application` | `domain`, `shared` | `infrastructure`, `config`, frameworks |
 | `infrastructure` | Todo | — |
-| `config` | `class-validator`, `class-transformer` | Solo lo leen `infrastructure`, `app.module.ts` y `main.ts` |
+| `config` | `class-validator`, `class-transformer` | Solo lo leen `infrastructure` (incluido el módulo raíz) y `main.ts` |
 
 "Frameworks" son `@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer` y `express`. Si un caso de uso necesita un valor de configuración (por ejemplo, las tarifas), lo pide a un **port** (`CheckoutSettings`) que implementa la infraestructura leyendo `config`.
 
@@ -222,16 +229,16 @@ constants, errors  ──►  value-objects  ──►  rules, entities
 | `@application/*` | `src/application/*` |
 | `@infrastructure/*` | `src/infrastructure/*` |
 | `@config/*` | `src/config/*` |
-| `@testing/*` | `src/testing/*` (solo desde tests) |
+| `@testing/*` | `tests/support/*` (solo desde pruebas) |
 
 - Entre carpetas distintas se importa **siempre con alias**: `import { appError } from '@shared/errors/app-error'`.
 - Las rutas relativas solo se usan entre vecinos cercanos (`./x`, `../x`). Subir dos niveles (`../../`) es error de lint.
 - Los alias están definidos en `tsconfig.json` (`paths`) y en `moduleNameMapper` de Jest; `nest build` los reescribe al compilar.
-- `@testing` solo se importa desde `*.spec.ts` y `test/`: el lint falla si el código de producción lo usa.
+- `@testing` solo se importa desde `tests/`: el lint falla si el código de producción lo usa, por alias o por ruta relativa.
 
 ### Cómo se hace cumplir
 
-`eslint.config.mjs` convierte esta tabla en errores de lint. Detecta los imports prohibidos **tanto por alias como por ruta relativa** (`@infrastructure/...` y `../infrastructure/...`), los frameworks en el núcleo y cualquier `throw` en `shared`, `domain` y `application`. Un import que viole la regla de dependencias no puede llegar a `staging`.
+`eslint.config.mjs` convierte esta tabla en errores de lint. Detecta los imports prohibidos **tanto por alias como por ruta relativa** (`@infrastructure/...` y `../infrastructure/...`), los frameworks en el núcleo y cualquier `throw` en `shared`, `domain` y `application`. Las pruebas unitarias de esas capas (`tests/unit/<capa>`) cumplen la misma tabla: una prueba del dominio tampoco importa NestJS. Un import que viole la regla de dependencias no puede llegar a `staging`.
 
 ## Inyección de dependencias y módulos
 
@@ -303,7 +310,7 @@ flowchart LR
 | `<feature>.module.ts` | Los controladores; importa su módulo de use-cases | Nada |
 
 - Un contexto usa repositorios de otro importando su `repositories.module`, **nunca** registrando el mismo provider dos veces. Ejemplo: los casos de uso de transacciones importan `ProductRepositoriesModule`.
-- `app.module.ts` solo importa los `<feature>.module.ts` y los módulos globales (`ConfigModule`, `ThrottlerModule`, `PersistenceModule`).
+- `infrastructure/modules/app.module.ts` solo importa los `<feature>.module.ts` y los módulos globales (`ConfigModule`, `ThrottlerModule`, `PersistenceModule`).
 - Un contexto crea solo los módulos que necesita: `health` solo tiene `health.module.ts`.
 
 ### Qué va en `domain/constants`
@@ -518,6 +525,7 @@ El caso de uso **no tiene decoradores de NestJS**: implementa `UseCase`, recibe 
 ### 4. Test del Use Case
 
 ```ts
+// tests/unit/application/use-cases/transaction/create-transaction.use-case.spec.ts
 it('falla con OUT_OF_STOCK sin registrar al cliente', async () => {
   products.findById.mockReturnValue(okAsync(aProduct({ stock: 1 })));
 
@@ -691,6 +699,45 @@ La liquidación es **idempotente**: el `UPDATE` está condicionado a `status = '
 
 `GetTransactionUseCase` pregunta a la pasarela solo si hay un cobro pendiente (`pendingPaymentId()`). Si la pasarela no responde, **no es un error**: devuelve la transacción tal como está y la SPA vuelve a consultar.
 
+## Pruebas por nivel
+
+Todas las pruebas viven en `tests/`, fuera de `src/`: el código de producción no se mezcla con sus pruebas y el build no las ve. Una sola `jest.config.ts` define un proyecto de Jest por nivel, y cada script elige el suyo con `--selectProjects`.
+
+| Nivel | Carpeta y sufijo | Qué prueba | Qué se simula | Comando |
+|-------|------------------|------------|---------------|---------|
+| Unitario | `tests/unit/**/*.spec.ts` | Una pieza aislada: value object, regla, entidad, caso de uso, mapper, repositorio, cliente de la pasarela, controlador o DTO | Sus dependencias directas: ports, Prisma, `fetch` o casos de uso | `pnpm test` · `pnpm test:cov` |
+| Integración | `tests/integration/**/*.int-spec.ts` | Varias piezas reales juntas: NestJS resuelve los tokens de cada módulo, y `configureApp` y los controladores responden por HTTP (supertest) | Solo lo externo: Prisma, `ConfigService` y `fetch` | `pnpm test:integration` |
+| E2E | `tests/e2e/**/*.e2e-spec.ts` | La API completa, de la petición HTTP a PostgreSQL y el Sandbox de la pasarela | Nada: requiere migraciones, seed, variables de la pasarela e internet | `pnpm test:e2e` |
+
+- **Unitarias como espejo de `src/`:** `src/domain/rules/stock.rules.ts` se prueba en `tests/unit/domain/rules/stock.rules.spec.ts`, así la prueba de cada archivo se encuentra sin buscarla.
+- **La regla de dependencias también rige en las pruebas:** una prueba de `tests/unit/domain` no puede importar NestJS ni `@infrastructure`, igual que el código que prueba. El lint lo comprueba.
+- **La cobertura se mide solo con las unitarias** (`pnpm test:cov`, umbral del 80 %). Lo que no alcanzan, el arranque de NestJS (`configureApp`, Swagger), sigue contando en el total y lo verifican las de integración.
+- **`tests/support/` (alias `@testing/*`):** `fixtures/` con datos válidos y overrides (`aProduct({ stock: 0 })`, `aTransactionOutput()`), `mocks/` con dobles de ports y casos de uso (`mockProductRepository()`, `mockUseCase()`) y `helpers/` (`validateRequest()`). El código de producción no puede importarlo, ni por alias ni por ruta relativa.
+
+El adaptador HTTP se prueba en dos niveles, cada uno con su responsabilidad:
+
+| Pieza | Unitaria | Integración |
+|-------|----------|-------------|
+| Controlador | Con `mockUseCase`: la entrada que recibe el caso de uso, el resultado tal cual y cada `err` convertido en su `HttpException` | Con supertest: rutas, códigos HTTP y formato del error |
+| Request DTO | Con `validateRequest`, que transforma y valida como el `ValidationPipe`: reglas de cada campo, rutas anidadas y normalización de textos | Con el `ValidationPipe` real: 400 `INVALID_REQUEST` y campos desconocidos rechazados |
+| Módulo | — | NestJS construye los controladores con sus casos de uso y adapters reales |
+
+```ts
+// tests/unit/infrastructure/http/controllers/product.controller.spec.ts
+const listProducts = mockUseCase<ListProductsUseCase>();
+const getProduct = mockUseCase<GetProductUseCase>();
+const controller = new ProductController(listProducts, getProduct);
+
+it('sale del riel con 404 PRODUCT_NOT_FOUND si no existe', async () => {
+  getProduct.execute.mockReturnValue(errAsync(productNotFound(MISSING_PRODUCT_ID)));
+
+  await expect(controller.get(MISSING_PRODUCT_ID)).rejects.toMatchObject({
+    status: HttpStatus.NOT_FOUND,
+    response: { code: 'PRODUCT_NOT_FOUND' },
+  });
+});
+```
+
 ## Teoría
 
 Cuando se trabaja desde cero una funcionalidad, el flujo arranca así:
@@ -751,7 +798,9 @@ Cada capa tiene una única responsabilidad, y cada error tiene un tipo y un cód
 
 ## Checklist de revisión
 
-- [ ] Los datos de prueba salen de `@testing/fixtures` y los dobles de los ports de `@testing/mocks`; ningún archivo de producción importa `@testing`.
+- [ ] Cada archivo de `src/` con lógica tiene su prueba unitaria en `tests/unit/`, en la misma ruta.
+- [ ] Los datos de prueba salen de `@testing/fixtures` y los dobles de ports y casos de uso de `@testing/mocks`; ningún archivo de producción importa `@testing`.
+- [ ] Cada contexto tiene la prueba de integración de su módulo y, si expone endpoints, la de sus controladores con supertest.
 - [ ] `domain/` y `application/` no importan `@nestjs/*`, `@prisma/client`, `class-validator`, `config` ni `infrastructure/`.
 - [ ] `domain/` no importa `application/`.
 - [ ] Los imports entre carpetas usan alias (`@shared`, `@domain`, `@application`, `@infrastructure`, `@config`).
@@ -767,7 +816,7 @@ Cada capa tiene una única responsabilidad, y cada error tiene un tipo y un cód
 Comprobación automática desde `backend/`:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test:cov
+pnpm typecheck && pnpm lint && pnpm test:cov && pnpm test:integration
 ```
 
-`eslint.config.mjs` convierte las reglas de este checklist en errores de lint: `shared`, `domain` y `application` no pueden importar frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`) ni capas exteriores, y no pueden usar `throw`. `test:cov` falla si la cobertura baja del 80%.
+`eslint.config.mjs` convierte las reglas de este checklist en errores de lint: `shared`, `domain` y `application` no pueden importar frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`) ni capas exteriores, y no pueden usar `throw`; sus pruebas unitarias cumplen la misma regla de dependencias. `test:cov` mide la cobertura con las pruebas unitarias y falla si baja del 80%.
