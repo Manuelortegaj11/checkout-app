@@ -26,12 +26,18 @@ export const flattenValidationErrors = (
     return [...own, ...flattenValidationErrors(error.children ?? [], field)];
   });
 
-/** `exceptionFactory` del ValidationPipe: errores de formato con la forma del contrato. */
-export const validationExceptionFactory = (
-  errors: ValidationError[],
+/** Error 400 de formato con la forma del contrato: `{ code, message, details }`. */
+export const invalidRequestException = (
+  details: FieldError[],
 ): BadRequestException =>
   new BadRequestException({
     code: 'INVALID_REQUEST',
     message: 'Request validation failed',
-    details: flattenValidationErrors(errors),
+    details,
   });
+
+/** `exceptionFactory` del ValidationPipe. */
+export const validationExceptionFactory = (
+  errors: ValidationError[],
+): BadRequestException =>
+  invalidRequestException(flattenValidationErrors(errors));

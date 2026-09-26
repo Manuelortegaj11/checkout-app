@@ -1,6 +1,7 @@
 import type { ValidationError } from 'class-validator';
 import {
   flattenValidationErrors,
+  invalidRequestException,
   validationExceptionFactory,
 } from './validation-exception.factory';
 
@@ -53,6 +54,21 @@ describe('validationExceptionFactory', () => {
       code: 'INVALID_REQUEST',
       message: 'Request validation failed',
       details: [{ field: 'productId', message: 'productId must be a UUID' }],
+    });
+  });
+});
+
+describe('invalidRequestException', () => {
+  it('crea un 400 con code INVALID_REQUEST y los detalles recibidos', () => {
+    const exception = invalidRequestException([
+      { field: 'id', message: 'id must be a UUID' },
+    ]);
+
+    expect(exception.getStatus()).toBe(400);
+    expect(exception.getResponse()).toEqual({
+      code: 'INVALID_REQUEST',
+      message: 'Request validation failed',
+      details: [{ field: 'id', message: 'id must be a UUID' }],
     });
   });
 });
