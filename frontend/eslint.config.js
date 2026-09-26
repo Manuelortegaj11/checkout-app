@@ -178,6 +178,16 @@ export default tseslint.config(
     },
   },
   {
+    // Pruebas y utilidades de prueba: pueden importar @testing y montar dobles.
+    files: ['tests/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.jest } },
+    rules: {
+      'no-restricted-imports': restrictImports(),
+      '@typescript-eslint/unbound-method': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
     // Configuración de herramientas: se ejecuta en Node.
     files: ['*.config.ts'],
     languageOptions: { globals: globals.node },
