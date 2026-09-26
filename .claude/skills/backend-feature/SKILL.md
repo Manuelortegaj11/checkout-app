@@ -60,11 +60,11 @@ infrastructure ──► application ──► domain ──► shared
 Ejecuta desde `backend/` y corrige lo que aparezca:
 
 ```bash
-grep -rnE "from '(@nestjs|@prisma/client|class-validator|class-transformer)" src/domain src/application
-grep -rnE "from '.*(application|infrastructure)/" src/domain
-grep -rn "throw " src/domain src/application
+pnpm typecheck && pnpm lint && pnpm test:cov
 ```
 
-Las tres deben devolver cero resultados. Después ejecuta los tests con cobertura y confirma que sigue por encima del 80%.
+`pnpm lint` ya comprueba la regla de dependencias y la prohibición de `throw` en `shared`, `domain` y `application`: si falla, corrige el código, no desactives la regla. `pnpm test:cov` falla si la cobertura baja del 80%.
+
+Si tocaste un endpoint, actualiza también `backend/docs/api/contrato-api.md` (request, response y códigos de error).
 
 Resume al usuario los archivos creados o modificados agrupados por capa (domain, application, infrastructure, tests) y los `code` de error nuevos.
