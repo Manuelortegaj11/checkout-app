@@ -1,3 +1,4 @@
+import type { PaymentResult } from '@domain/entities/transaction.entity';
 import type { AppError } from '@shared/errors/app-error';
 import type { ResultAsync } from '@shared/result';
 
@@ -20,4 +21,9 @@ export interface AcceptanceContracts {
 export interface PaymentGatewayPort {
   /** Versiones vigentes de los contratos que el cliente debe aceptar. */
   getAcceptanceContracts(): ResultAsync<AcceptanceContracts, AppError>;
+
+  /** Estado actual de un cobro ya enviado. */
+  getPayment(
+    gatewayTransactionId: string,
+  ): ResultAsync<PaymentResult, AppError>;
 }

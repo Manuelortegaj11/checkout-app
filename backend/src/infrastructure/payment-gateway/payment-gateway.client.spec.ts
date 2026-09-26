@@ -1,8 +1,10 @@
 import { anAcceptanceContracts } from '@testing/fixtures/checkout.fixture';
+import { aGatewayTransactionResponse } from '@testing/fixtures/gateway-transaction.fixture';
 import {
   aMerchantResponse,
   jsonResponse,
 } from '@testing/fixtures/merchant-response.fixture';
+import { GATEWAY_TRANSACTION_ID } from '@testing/fixtures/transaction.fixture';
 import { mockConfigService } from '@testing/mocks/config-service.mock';
 import { PaymentGatewayHttpClient } from './payment-gateway.client';
 
@@ -60,6 +62,50 @@ describe('PaymentGatewayHttpClient', () => {
       const result = await clientWith(
         'https://gateway.test/v1',
       ).getAcceptanceContracts();
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+    });
+  });
+
+  describe('getPayment', () => {
+    it('consulta el cobro por su id, sin credenciales, y devuelve su estado', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(
+          aGatewayTransactionResponse({
+            status: 'DECLINED',
+            status_message: 'La transacción fue rechazada (Sandbox)',
+          }),
+        ),
+      );
+
+      const result = await clientWith('https://gateway.test/v1').getPayment(
+        GATEWAY_TRANSACTION_ID,
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `https://gateway.test/v1/transactions/${GATEWAY_TRANSACTION_ID}`,
+        {
+          headers: { Accept: 'application/json' },
+          signal: expect.any(AbortSignal) as unknown,
+        },
+      );
+      expect(result._unsafeUnwrap()).toEqual({
+        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+        status: 'DECLINED',
+        statusMessage: 'La transacción fue rechazada (Sandbox)',
+      });
+    });
+
+    it('falla con PAYMENT_GATEWAY_UNAVAILABLE si el cobro no existe en la pasarela', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse({ error: { type: 'NOT_FOUND_ERROR' } }, 404),
+      );
+
+      const result = await clientWith('https://gateway.test/v1').getPayment(
+        'no-existe',
+      );
 
       expect(result._unsafeUnwrapErr().code).toBe(
         'PAYMENT_GATEWAY_UNAVAILABLE',

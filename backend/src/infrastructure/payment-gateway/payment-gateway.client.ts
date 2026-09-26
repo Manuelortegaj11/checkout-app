@@ -6,8 +6,10 @@ import {
   type PaymentGatewayPort,
 } from '@application/ports/payment-gateway.port';
 import type { EnvironmentVariables } from '@config/env.validation';
+import type { PaymentResult } from '@domain/entities/transaction.entity';
 import type { AppError } from '@shared/errors/app-error';
 import type { ResultAsync } from '@shared/result';
+import { toPaymentResult } from './gateway-transaction.response';
 import { toAcceptanceContracts } from './merchant.response';
 import { getJson } from './payment-gateway.http';
 
@@ -30,6 +32,15 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
     const url = `${this.baseUrl}/merchants/${encodeURIComponent(this.publicKey)}`;
 
     return getJson(url, this.timeoutMs).andThen(toAcceptanceContracts);
+  }
+
+  /** La consulta es pública en la pasarela: no necesita credenciales. */
+  getPayment(
+    gatewayTransactionId: string,
+  ): ResultAsync<PaymentResult, AppError> {
+    const url = `${this.baseUrl}/transactions/${encodeURIComponent(gatewayTransactionId)}`;
+
+    return getJson(url, this.timeoutMs).andThen(toPaymentResult);
   }
 }
 
