@@ -1,5 +1,6 @@
 import { initialCheckoutState } from '@features/checkout/checkout.slice';
 import { initialProductsState } from '@features/products/products.slice';
+import { initialTransactionState } from '@features/transaction/transaction.slice';
 import { makeStore, store } from '@store/index';
 import { aProduct } from '@testing/fixtures/product.fixture';
 
@@ -8,6 +9,7 @@ describe('makeStore', () => {
     expect(makeStore().getState()).toEqual({
       products: initialProductsState,
       checkout: initialCheckoutState,
+      transaction: initialTransactionState,
     });
   });
 
