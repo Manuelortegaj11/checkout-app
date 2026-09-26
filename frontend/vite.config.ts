@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
@@ -14,7 +15,7 @@ const apiProxy = {
 };
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     // Los mismos alias que tsconfig.app.json (paths).
     alias: {
