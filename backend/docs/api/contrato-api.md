@@ -277,21 +277,27 @@ stateDiagram-v2
 
 ### `GET /api/products`
 
+Todos los productos, **incluidos los agotados** (`stock: 0`), en orden de creación. El frontend decide cómo mostrar los agotados.
+
 **200**
 
 ```json
 [
   {
-    "id": "5b0c1c5e-7f1d-4a39-9d2f-1a2b3c4d5e6f",
+    "id": "01920000-0000-7000-8000-000000000001",
     "name": "Audífonos inalámbricos",
-    "description": "Cancelación de ruido y 30 horas de batería.",
-    "priceInCents": 15000000,
+    "description": "Cancelación activa de ruido, 30 horas de batería y carga rápida por USB-C.",
+    "priceInCents": 18990000,
     "currency": "COP",
-    "stock": 8,
-    "imageUrl": "/images/products/headphones.webp"
+    "stock": 12,
+    "imageUrl": "/images/products/wireless-headphones.webp"
   }
 ]
 ```
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `DB_QUERY_FAILED` | 500 | La base de datos no responde |
 
 ### `GET /api/products/:id`
 
@@ -301,6 +307,23 @@ stateDiagram-v2
 |-------|------|--------|
 | `INVALID_REQUEST` | 400 | `id` no es un UUID |
 | `PRODUCT_NOT_FOUND` | 404 | No existe |
+| `DB_QUERY_FAILED` | 500 | La base de datos no responde |
+
+**400** (`id` inválido):
+
+```json
+{
+  "code": "INVALID_REQUEST",
+  "message": "Request validation failed",
+  "details": [{ "field": "id", "message": "id must be a UUID" }]
+}
+```
+
+**404:**
+
+```json
+{ "code": "PRODUCT_NOT_FOUND", "message": "Product 01920000-0000-7000-8000-0000000000ff not found" }
+```
 
 ### `GET /api/checkout/config`
 
@@ -336,7 +359,7 @@ Devuelve las tarifas y los dos contratos que el cliente debe aceptar con casilla
 
 ```json
 {
-  "productId": "5b0c1c5e-7f1d-4a39-9d2f-1a2b3c4d5e6f",
+  "productId": "01920000-0000-7000-8000-000000000001",
   "quantity": 1,
   "customer": {
     "fullName": "Ana Gómez",
@@ -432,7 +455,7 @@ Si la pasarela no responde durante la sincronización, **no es un error**: se de
   "paymentSubmitted": true,
   "quantity": 1,
   "product": {
-    "id": "5b0c1c5e-7f1d-4a39-9d2f-1a2b3c4d5e6f",
+    "id": "01920000-0000-7000-8000-000000000001",
     "name": "Audífonos inalámbricos",
     "imageUrl": "/images/products/headphones.webp"
   },
