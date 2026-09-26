@@ -10,6 +10,8 @@ export type { TransactionState } from './transaction.slice';
 export {
   createTransaction,
   fetchTransaction,
+  PAYMENT_STILL_PENDING,
   payTransaction,
+  pollTransaction,
 } from './transaction.thunks';
 export type { PayTransactionArgs } from './transaction.thunks';

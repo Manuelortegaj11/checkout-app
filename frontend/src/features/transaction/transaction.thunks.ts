@@ -4,7 +4,16 @@ import {
   type CreateTransactionRequest,
   type SubmitPaymentRequest,
 } from '@shared/api/transactions.api';
+import { wait } from '@shared/lib/async/wait';
 import { createAppAsyncThunk } from '@store/create-app-async-thunk';
+import { isFinalStatus } from './transaction-status';
+
+/** Un pago pendiente se consulta cada 2 s durante 1 minuto como máximo. */
+export const POLL_INTERVAL_MS = 2_000;
+export const POLL_MAX_ATTEMPTS = 30;
+
+/** El pago siguió PENDING durante toda la espera. */
+export const PAYMENT_STILL_PENDING = 'PAYMENT_STILL_PENDING';
 
 /** Abre la compra en PENDING. */
 export const createTransaction = createAppAsyncThunk(
@@ -45,5 +54,34 @@ export const fetchTransaction = createAppAsyncThunk(
     } catch (error) {
       return rejectWithValue(errorCodeOf(error));
     }
+  },
+);
+
+/**
+ * Consulta el pago hasta que la pasarela lo decide. Termina antes si el cobro
+ * nunca se envió (seguir consultando no cambiaría nada). Un fallo de red en
+ * una consulta no corta la espera: se reintenta en la siguiente. Se cancela
+ * con `abort()` de la promesa que devuelve dispatch.
+ */
+export const pollTransaction = createAppAsyncThunk(
+  'transaction/poll',
+  async (id: string, { dispatch, signal, rejectWithValue }) => {
+    for (let attempt = 1; attempt <= POLL_MAX_ATTEMPTS; attempt += 1) {
+      const result = await dispatch(fetchTransaction(id));
+
+      if (fetchTransaction.fulfilled.match(result)) {
+        const transaction = result.payload;
+        if (
+          isFinalStatus(transaction.status) ||
+          !transaction.paymentSubmitted
+        ) {
+          return transaction;
+        }
+      }
+      if (attempt < POLL_MAX_ATTEMPTS) {
+        await wait(POLL_INTERVAL_MS, signal);
+      }
+    }
+    return rejectWithValue(PAYMENT_STILL_PENDING);
   },
 );
