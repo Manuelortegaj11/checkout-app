@@ -1,0 +1,5 @@
+peerDependencyRules:
+  allowedVersions:
+    # eslint-plugin-jsx-a11y 6.10 declara ESLint hasta la 9, pero solo usa
+    # context.report, context.options y context.settings, que siguen en la 10.
+    eslint-plugin-jsx-a11y>eslint: '10'
