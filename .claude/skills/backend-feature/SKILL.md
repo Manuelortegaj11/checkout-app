@@ -72,6 +72,8 @@ Ejecuta desde `backend/` y corrige lo que aparezca:
 pnpm typecheck && pnpm lint && pnpm test:cov
 ```
 
+Ejecuta las pruebas sin `| grep` o con `set -o pipefail`: una tubería oculta el código de salida y deja pasar un commit con pruebas en rojo. Cada commit debe compilar y pasar sus pruebas; si un port gana un método, ese commit incluye su adapter y su doble de prueba.
+
 `pnpm lint` ya comprueba la regla de dependencias y la prohibición de `throw` en `shared`, `domain` y `application`: si falla, corrige el código, no desactives la regla. `pnpm test:cov` falla si la cobertura baja del 80%.
 
 Si tocaste un endpoint, actualiza también `backend/docs/api/contrato-api.md` (request, response y códigos de error).
