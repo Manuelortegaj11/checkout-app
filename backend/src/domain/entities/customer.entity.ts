@@ -1,3 +1,7 @@
+import {
+  normalizePersonName,
+  normalizePhone,
+} from '@domain/rules/contact.rules';
 import { Email } from '@domain/value-objects/email.vo';
 import type { AppError } from '@shared/errors/app-error';
 import type { Result } from '@shared/result';
@@ -9,11 +13,6 @@ export interface CustomerProps {
   readonly email: string;
   readonly phone: string;
 }
-
-const normalizeName = (name: string): string =>
-  name.trim().replace(/\s+/g, ' ');
-
-const normalizePhone = (phone: string): string => phone.replace(/\s+/g, '');
 
 /**
  * Cliente de la tienda (aggregate root). Se identifica por su email:
@@ -33,7 +32,7 @@ export class Customer {
       (validEmail) =>
         new Customer({
           id,
-          fullName: normalizeName(fullName),
+          fullName: normalizePersonName(fullName),
           email: validEmail.value,
           phone: normalizePhone(phone),
         }),
