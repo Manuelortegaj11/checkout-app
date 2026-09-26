@@ -94,9 +94,12 @@ frontend/
 │   │   │   ├── products.selectors.ts
 │   │   │   └── index.ts                # API pública de la feature
 │   │   ├── checkout/
-│   │   │   ├── components/             # CheckoutModal, CardForm, DeliveryForm, SummaryBackdrop
+│   │   │   ├── components/             # PayWithCardButton, PaymentModal (contenedor) y sus secciones: OrderLine, ContactFields, AddressFields, CardFields
 │   │   │   ├── checkout.slice.ts       # Máquina de pasos + datos del checkout
-│   │   │   ├── checkout.thunks.ts      # tokenizeCard, createTransaction, payTransaction
+│   │   │   ├── checkout-step.ts        # Pasos de la máquina y unidades máximas por compra
+│   │   │   ├── checkout-form.validation.ts # Reglas del formulario (las mismas que el backend)
+│   │   │   ├── checkout.thunks.ts      # fetchCheckoutConfig
+│   │   │   ├── use-card-tokenization.ts # Tokeniza la tarjeta sin pasar por Redux (ver Seguridad)
 │   │   │   ├── checkout.selectors.ts
 │   │   │   └── index.ts
 │   │   └── transaction/
@@ -105,7 +108,7 @@ frontend/
 │   │       └── index.ts
 │   │
 │   ├── shared/                         # No importa nada de features/ ni app/
-│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Badge, Notice, Skeleton, Input, Modal, Backdrop…
+│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Badge, Notice, Skeleton, TextField, QuantityStepper, Fieldset, Modal, CardBrandIcon
 │   │   ├── lib/
 │   │   │   ├── card/                   # luhn.ts, card-brand.ts, expiry.ts, cvc.ts
 │   │   │   ├── format/                 # currency.ts
@@ -115,13 +118,14 @@ frontend/
 │   │   │   ├── http-client.ts          # Único fetch: /api del mismo origen, JSON, tiempo límite y errores normalizados
 │   │   │   ├── products.api.ts
 │   │   │   ├── transactions.api.ts
-│   │   │   └── payment-gateway.api.ts  # Tokenización con la llave pública
-│   │   ├── hooks/                      # useMediaQuery, useFocusTrap…
-│   │   └── config/env.ts               # ÚNICO lugar que lee import.meta.env (VITE_*)
+│   │   │   ├── checkout.api.ts         # Tarifas, contratos y datos públicos de la pasarela
+│   │   │   └── payment-gateway.api.ts  # Tokenización directa en la pasarela con la llave pública
+│   │   └── hooks/                      # useDialogBehavior: foco atrapado, Escape y scroll bloqueado
 │   │
 │   └── store/
 │       ├── index.ts                    # configureStore + persistReducer + persistor
 │       ├── root-reducer.ts
+│       ├── local-storage.ts            # Motor de redux-persist: el único archivo que toca localStorage
 │       └── hooks.ts                    # useAppDispatch, useAppSelector tipados
 └── tests/                              # TODAS las pruebas, fuera de src/ (igual que el backend)
     ├── unit/                           # *.spec.ts(x): espejo de src/ (lib, api, slices, thunks, componentes)
@@ -145,7 +149,7 @@ app ──► features ──► shared
 - Los componentes no importan `shared/api/`: el acceso a datos pasa siempre por un thunk.
 - Entre carpetas se importa con alias (`@app`, `@features`, `@shared`, `@store`); dentro de una feature, con rutas relativas a sus vecinos. Subir dos niveles (`../../`) es error de lint.
 
-`eslint.config.js` convierte estas reglas en errores, tanto por alias como por ruta relativa, y añade las de seguridad: `import.meta.env` solo en `shared/config/env.ts`, `fetch` solo en `shared/api/http-client.ts`, nada de `localStorage` ni `sessionStorage` directos (se persiste solo con redux-persist), `cardNumber` y `cvc` prohibidos en el store y en los slices, y nunca `dangerouslySetInnerHTML`.
+`eslint.config.js` convierte estas reglas en errores, tanto por alias como por ruta relativa, y añade las de seguridad: `import.meta.env` solo en `shared/config/env.ts`, `fetch` solo en `shared/api/http-client.ts`, `localStorage` solo en `store/local-storage.ts` (el motor de redux-persist), `cardNumber` y `cvc` prohibidos en el store y en los slices, y nunca `dangerouslySetInnerHTML`. Un componente puede importar los tipos de `shared/api` (`import type`), pero no sus servicios.
 
 ### Convenciones de nombres
 
@@ -228,7 +232,8 @@ React no optimiza imágenes por sí solo: la optimización se hace al preparar l
 ## Seguridad
 
 - La SPA llama a la API en `/api`, en su mismo origen: en local la reenvía el proxy de Vite (`vite.config.ts`) y en producción Nginx. Así no hace falta CORS ni la URL del backend en el bundle.
-- Vite incrusta en el bundle toda variable `VITE_*`, así que es **pública**. Solo van la URL de tokenización y la **llave pública** de la pasarela. Nunca una llave privada.
+- **Sin variables de entorno:** la URL de la pasarela y la llave pública llegan en `GET /api/checkout/config`, así la configuración de la pasarela vive solo en el backend y cambiar de llave no obliga a recompilar la SPA. Si algún día hiciera falta una variable `VITE_*`, recuerda que Vite la incrusta en el bundle: es pública.
+- **La tarjeta no pasa por Redux:** se tokeniza con el hook `useCardTokenization`, no con un thunk. `createAsyncThunk` guarda su argumento en `meta.arg` de cada acción, así que el número y el CVC quedarían en el historial de Redux DevTools. Al store llegan solo el token, la marca y los últimos 4 dígitos.
 - Nunca usar `dangerouslySetInnerHTML`.
 - El número de tarjeta y el CVC no se loguean, no se guardan y no se envían al backend: solo a la tokenización.
 - Las cabeceras de seguridad (CSP, HSTS…) las pone Nginx.
@@ -236,9 +241,10 @@ React no optimiza imágenes por sí solo: la optimización se hace al preparar l
 ## React + Vite: detalles a tener en cuenta
 
 - **Solo React.** Prohibido cualquier framework (Next.js, Remix, React Router en modo framework, Gatsby…). Vite solo empaqueta; no aporta rutas, servidor ni renderizado.
-- **Variables de entorno:** solo se leen en `shared/config/env.ts`. `import.meta.env` no existe en Jest (CommonJS), así que Jest sustituye ese módulo por uno de prueba (`moduleNameMapper`). Ningún otro archivo usa `import.meta.env`.
+- **Variables de entorno:** hoy no hay ninguna. Si hiciera falta, solo se leería en `shared/config/env.ts`: `import.meta.env` no existe en Jest (CommonJS) y ese módulo se sustituiría por uno de prueba.
 - **Tests con Jest, no Vitest:** Vite trae Vitest por defecto, pero el enunciado exige Jest. Jest usa `ts-jest` con entorno `jsdom`; los imports de CSS e imágenes se sustituyen por mocks.
-- **Rehidratación:** `PersistGate` muestra un indicador de carga hasta recuperar el estado de `localStorage`, para no pintar un paso equivocado durante un instante.
+- **Rehidratación:** `PersistGate` no pinta hasta recuperar el estado de `localStorage`, para no mostrar un paso equivocado durante un instante. Tarda milisegundos, así que no necesita indicador.
+- **Interop con CommonJS:** `redux-persist/lib/storage` es CommonJS con `exports.default` y Vite lo importa como el objeto del módulo, no como el almacenamiento (Jest lo oculta). Por eso la persistencia usa su propio motor, `store/local-storage.ts`, que además sigue funcionando sin persistir si el navegador bloquea `localStorage`.
 - **Build:** `vite build` genera `dist/` con archivos con hash en el nombre, que Nginx puede cachear mucho tiempo. `index.html` no se cachea.
 
 ## Tests
@@ -248,7 +254,7 @@ Mismo esquema que el backend: todas las pruebas en `tests/`, una carpeta por niv
 | Nivel | Carpeta y sufijo | Qué prueba |
 |-------|------------------|------------|
 | Unitario | `tests/unit/**/*.spec.ts(x)` | Una pieza aislada, en la misma ruta que tiene en `src/`: función de `shared/lib`, servicio de API, slice, thunk, selector o componente |
-| Integración | `tests/integration/**/*.int-spec.tsx` | Un flujo completo del checkout con el store real, la persistencia y la API simulada (por ejemplo, refrescar en `SUMMARY` y seguir donde iba) |
+| Integración | `tests/integration/**/*.int-spec.tsx` | Un flujo completo del checkout con el store, la persistencia y los servicios reales; solo la red se simula (`renderApp` monta la app como al abrir la página). Ejemplo: del catálogo al resumen, y un refresh a mitad del formulario |
 
 No hay e2e en el frontend: el recorrido real contra la API y el Sandbox lo cubren las e2e del backend. La cobertura se mide solo con las pruebas unitarias.
 
@@ -262,7 +268,7 @@ No hay e2e en el frontend: el recorrido real contra la API y el Sandbox lo cubre
 | `shared/api` | `fetch` mockeado: URL, método, cuerpo y manejo de errores | Camino feliz y error |
 
 - Umbral en `jest.config.ts`: `coverageThreshold.global` de **80** en líneas, ramas, funciones y sentencias.
-- Excluir de la cobertura solo lo que no tiene lógica: `main.tsx`, `shared/config/env.ts`, archivos `index.ts` que solo re-exportan y tipos.
+- Excluir de la cobertura solo lo que no tiene lógica: `main.tsx` y los `index.ts` de cada feature, que solo re-exportan.
 - Consultar por rol y texto (`getByRole`, `getByLabelText`), no por clases CSS.
 
 ## Checklist de revisión
