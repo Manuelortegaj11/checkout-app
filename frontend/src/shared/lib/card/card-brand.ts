@@ -6,6 +6,12 @@ export const CARD_BRAND = {
 
 export type CardBrand = (typeof CARD_BRAND)[keyof typeof CARD_BRAND];
 
+/** Cuántos dígitos puede tener el número de cada marca. */
+export const CARD_NUMBER_LENGTHS: Record<CardBrand, readonly number[]> = {
+  VISA: [13, 16, 19],
+  MASTERCARD: [16],
+};
+
 const isInRange = (value: number, min: number, max: number) =>
   value >= min && value <= max;
 
