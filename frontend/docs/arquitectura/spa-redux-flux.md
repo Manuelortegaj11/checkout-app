@@ -78,7 +78,7 @@ frontend/
 ├── vite.config.ts                      # Plugin de React, alias y servidor de desarrollo
 ├── jest.config.ts                      # Jest + jsdom, alias y umbral de cobertura
 ├── public/
-│   └── images/                         # Imágenes optimizadas (WebP) y logos de marcas de tarjeta
+│   └── images/                         # Productos en WebP y logos SVG de las marcas de tarjeta
 ├── src/
 │   ├── main.tsx                        # Arranque: createRoot + <App />
 │   ├── app/                            # SOLO composición
@@ -104,7 +104,7 @@ frontend/
 │   │       └── index.ts
 │   │
 │   ├── shared/                         # No importa nada de features/ ni app/
-│   │   ├── ui/                         # Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
+│   │   ├── ui/                         # theme.css (tokens de Pletus) + Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
 │   │   ├── lib/
 │   │   │   ├── card/                   # luhn.ts, card-brand.ts, expiry.ts, cvc.ts
 │   │   │   ├── format/                 # currency.ts
@@ -167,6 +167,39 @@ app ──► features ──► shared
 | Titular | Obligatorio, solo letras y espacios | Formulario |
 
 La marca se detecta **mientras se escribe** y se muestra su logo; el número se formatea en grupos de 4.
+
+## Identidad visual: Pletus
+
+La tienda se llama **Pletus**. No usa logotipo ni mascota: la marca se reconoce por el nombre escrito, la paleta, la tipografía y el estilo de los componentes. Los íconos son de **lucide-react**.
+
+### Tokens
+
+Todo color, sombra y radio sale de un token de `src/shared/ui/theme.css` (bloque `@theme` de Tailwind 4), y Tailwind genera sus utilidades (`bg-primary-500`, `text-ink`, `border-line`, `rounded-control`…). Un componente nunca escribe un color literal: así el tema oscuro cambia todos los colores sin tocar componentes.
+
+| Token | Claro | Uso |
+|-------|-------|-----|
+| `primary-500` | `#0066FF` | Azul principal: botón principal, foco, estados activos |
+| `primary-600` · `primary-700` | `#0052D6` · `#0040A8` | Hover y pulsado del principal |
+| `primary-50` · `primary-100` | `#E8F1FF` · `#CFE2FF` | Fondos suaves de estados activos |
+| `secondary-500` | `#00AAFF` | Acento y apoyo; nunca es el botón principal ni el anillo de foco |
+| `canvas` | `#F6F8FC` | Fondo de la página |
+| `surface` · `surface-overlay` | `#FFFFFF` · `#FFFFFF` | Tarjetas; modal y backdrop |
+| `line` · `line-subtle` | `#D6DFEF` · `#E7ECF7` | Bordes |
+| `ink` · `ink-muted` · `ink-subtle` | `#0B1147` · `#46506E` · `#676F8D` | Texto principal, secundario y de apoyo |
+| `success` · `warning` · `danger` · `info` | `#2E7D32` · `#D4A800` · `#D32F2F` · `#0E7490` | Estados, no marca: aprobado, pendiente, rechazado e información. Cada uno tiene su variante `-soft` (fondo) y `-strong` (texto) |
+
+- Los neutros no son grises puros: llevan la tinta azul de la marca, por eso conviven con el principal sin ensuciarse.
+- El texto sobre `primary-500` usa `on-primary` (blanco, contraste 4.83:1).
+- **Tema oscuro automático** con `prefers-color-scheme`: redefine los mismos tokens con valores propios de una superficie oscura (no es el claro invertido).
+
+### Estilo de los componentes
+
+- **Esquinas rectas.** Los radios `control` (lo que se pulsa) y `surface` (lo que contiene) valen 0. Cada componente pide su radio por rol, así que cambiar el token los ajusta todos.
+- **Bordes de 1 px.** Lo que debe destacar se resuelve con color, no con grosor. La excepción es el anillo de foco: 2 px con `focus-visible`.
+- **Tipografía Inter** variable, autoalojada con `@fontsource-variable/inter`, con un respaldo de métricas ajustadas para que el texto no salte al cargar la fuente.
+- **Controles de 44 px de alto** (objetivo táctil) y texto de 16 px en los inputs en móvil, para que iOS no haga zoom al enfocarlos.
+- **Movimiento breve** (160 a 340 ms) con curvas `ease-standard` y `ease-emphasis`; se desactiva con `prefers-reduced-motion`.
+- **Sombras suaves teñidas de azul:** `shadow-elevated` para tarjetas y `shadow-overlay` para el modal y el backdrop.
 
 ## UI responsive (mobile first)
 
@@ -233,6 +266,7 @@ No hay e2e en el frontend: el recorrido real contra la API y el Sandbox lo cubre
 - [ ] El store y `localStorage` no contienen el número de tarjeta ni el CVC.
 - [ ] Nada se desborda a 375 px de ancho.
 - [ ] Toda imagen tiene dimensiones reservadas y está en WebP o SVG.
+- [ ] Ningún componente usa colores, sombras ni radios literales: todo sale de los tokens de `theme.css`.
 - [ ] `shared/` no importa de `features/`, `store/` ni `app/`.
 - [ ] Cobertura por encima del 80%.
 - [ ] `import.meta.env` solo aparece en `shared/config/env.ts`.
