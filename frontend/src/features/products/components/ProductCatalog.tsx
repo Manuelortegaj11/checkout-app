@@ -70,7 +70,7 @@ export function ProductCatalog() {
           <p role="status" className="sr-only">
             Cargando productos…
           </p>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: SKELETON_COUNT }, (_, index) => (
               <li key={index}>
                 <ProductCardSkeleton />
@@ -87,7 +87,7 @@ export function ProductCatalog() {
       )}
 
       {hasProducts && (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((product, index) => (
             <li key={product.id}>
               <ProductCard product={product} priority={index === 0} />
