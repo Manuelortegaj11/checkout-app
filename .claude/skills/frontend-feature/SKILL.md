@@ -57,11 +57,9 @@ Las pruebas viven en `tests/`, fuera de `src/`: cada archivo tiene la suya en `t
 Ejecuta desde `frontend/` y corrige lo que aparezca:
 
 ```bash
-grep -rnE "fetch\(|shared/api" src/features/*/components src/app
-grep -rnE "from '.*(features|store|app)/" src/shared
-grep -rnE "cardNumber|cvc" src/store src/features/*/*.slice.ts
+pnpm typecheck && pnpm lint && pnpm test:cov
 ```
 
-Las tres deben devolver cero resultados. Después ejecuta los tests con cobertura y confirma que sigue por encima del 80%.
+`pnpm lint` ya comprueba las reglas de la arquitectura (capas, componentes sin `shared/api`, `import.meta.env` solo en `env.ts`, `fetch` solo en `http-client.ts`, nada de `cardNumber` ni `cvc` en el store) y falla con cualquier aviso: si falla, corrige el código, no desactives la regla. `pnpm test:cov` falla si la cobertura baja del 80%. Ejecuta las pruebas sin `| grep` o con `set -o pipefail` para no ocultar el código de salida.
 
 Resume al usuario los archivos creados o modificados agrupados por capa (shared, store, features, app, tests) y cómo se comporta la funcionalidad al refrescar la página.
