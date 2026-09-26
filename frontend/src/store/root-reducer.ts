@@ -15,7 +15,8 @@ export const checkoutPersistConfig = {
   key: 'checkout',
   version: 1,
   storage: localStorageEngine,
-  blacklist: ['config'] satisfies (keyof CheckoutState)[],
+  // El estado del pago en curso tampoco: tras un refresh, la consulta se retoma de cero.
+  blacklist: ['config', 'order'] satisfies (keyof CheckoutState)[],
 };
 
 export const rootReducer = combineReducers({

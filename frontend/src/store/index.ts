@@ -1,4 +1,8 @@
-import { configureStore } from '@reduxjs/toolkit';
+import {
+  configureStore,
+  type ThunkAction,
+  type UnknownAction,
+} from '@reduxjs/toolkit';
 import {
   FLUSH,
   PAUSE,
@@ -27,5 +31,13 @@ export const makeStore = (preloadedState?: Partial<RootState>) =>
 
 export type AppStore = ReturnType<typeof makeStore>;
 export type AppDispatch = AppStore['dispatch'];
+
+/** Thunk que solo coordina acciones, sin petición propia. */
+export type AppThunk<Result = void> = ThunkAction<
+  Result,
+  RootState,
+  undefined,
+  UnknownAction
+>;
 
 export const store = makeStore();

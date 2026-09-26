@@ -1,4 +1,5 @@
 import {
+  selectAcceptanceContracts,
   selectAddressDraft,
   selectCheckoutCard,
   selectCheckoutConfigErrorCode,
@@ -6,7 +7,11 @@ import {
   selectCheckoutProduct,
   selectCheckoutQuantity,
   selectCheckoutStep,
+  selectCheckoutTransactionId,
   selectContactDraft,
+  selectOrderAmounts,
+  selectOrderErrorCode,
+  selectOrderStatus,
   selectPaymentGatewaySettings,
 } from '@features/checkout/checkout.selectors';
 import {
@@ -20,6 +25,7 @@ import {
   aTokenizedCard,
 } from '@testing/fixtures/checkout.fixture';
 import { aProduct, PRODUCT_ID } from '@testing/fixtures/product.fixture';
+import { TRANSACTION_ID } from '@testing/fixtures/transaction.fixture';
 
 const stateWith = (checkout: Partial<CheckoutState>): RootState =>
   makeStore({
@@ -76,6 +82,53 @@ describe('selectores del checkout', () => {
     expect(selectCheckoutProduct(stateWith({ productId: null }))).toBeNull();
     expect(
       selectCheckoutProduct(stateWith({ productId: 'no-existe' })),
+    ).toBeNull();
+  });
+});
+
+describe('selectores del pago', () => {
+  const state = stateWith({
+    productId: PRODUCT_ID,
+    quantity: 2,
+    transactionId: TRANSACTION_ID,
+    config: { status: 'succeeded', data: aCheckoutConfig(), errorCode: null },
+    order: { status: 'failed', errorCode: 'OUT_OF_STOCK' },
+  });
+
+  it('leen la transacción abierta y el estado del pago', () => {
+    expect(selectCheckoutTransactionId(state)).toBe(TRANSACTION_ID);
+    expect(selectOrderStatus(state)).toBe('failed');
+    expect(selectOrderErrorCode(state)).toBe('OUT_OF_STOCK');
+  });
+
+  it('selectAcceptanceContracts devuelve los contratos a aceptar', () => {
+    expect(selectAcceptanceContracts(state)).toEqual(
+      aCheckoutConfig().acceptance,
+    );
+    expect(selectAcceptanceContracts(stateWith({}))).toBeNull();
+  });
+
+  it('selectOrderAmounts calcula el desglose con la cantidad y las tarifas vigentes', () => {
+    expect(selectOrderAmounts(state)).toEqual({
+      productAmountInCents: 37_980_000,
+      baseFeeInCents: 250_000,
+      deliveryFeeInCents: 800_000,
+      totalInCents: 39_030_000,
+    });
+  });
+
+  it('selectOrderAmounts es null sin el producto o sin la configuración', () => {
+    expect(selectOrderAmounts(stateWith({ productId: PRODUCT_ID }))).toBeNull();
+    expect(
+      selectOrderAmounts(
+        stateWith({
+          config: {
+            status: 'succeeded',
+            data: aCheckoutConfig(),
+            errorCode: null,
+          },
+        }),
+      ),
     ).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { selectProducts } from '@features/products';
+import { orderAmounts } from '@shared/lib/pricing/order-amounts';
 import type { RootState } from '@store/index';
 
 export const selectCheckoutStep = (state: RootState) => state.checkout.step;
@@ -28,4 +29,30 @@ export const selectCheckoutProduct = createSelector(
   [selectProducts, (state: RootState) => state.checkout.productId],
   (products, productId) =>
     products.find((product) => product.id === productId) ?? null,
+);
+
+export const selectCheckoutTransactionId = (state: RootState) =>
+  state.checkout.transactionId;
+
+export const selectOrderStatus = (state: RootState) =>
+  state.checkout.order.status;
+
+export const selectOrderErrorCode = (state: RootState) =>
+  state.checkout.order.errorCode;
+
+/** Contratos que el cliente acepta antes de pagar; `null` hasta cargar la configuración. */
+export const selectAcceptanceContracts = (state: RootState) =>
+  state.checkout.config.data?.acceptance ?? null;
+
+/** Desglose que se muestra antes de pagar; `null` hasta tener el producto y las tarifas. */
+export const selectOrderAmounts = createSelector(
+  [
+    selectCheckoutProduct,
+    selectCheckoutQuantity,
+    (state: RootState) => state.checkout.config.data,
+  ],
+  (product, quantity, config) =>
+    product && config
+      ? orderAmounts(product.priceInCents, quantity, config)
+      : null,
 );
