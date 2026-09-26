@@ -20,6 +20,8 @@ const config: Config = {
     '!main.ts',
     '!**/*.module.ts',
     '!**/index.ts',
+    // Código generado por Prisma.
+    '!infrastructure/persistence/generated/**',
   ],
   coverageDirectory: '../coverage',
   coverageReporters: ['text', 'text-summary', 'lcov'],

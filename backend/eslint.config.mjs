@@ -39,7 +39,12 @@ const NO_THROW = {
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs', 'dist/**', 'coverage/**'],
+    ignores: [
+      'eslint.config.mjs',
+      'dist/**',
+      'coverage/**',
+      'src/infrastructure/persistence/generated/**',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
