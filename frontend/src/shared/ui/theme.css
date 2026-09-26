@@ -70,6 +70,13 @@
   --color-info-soft: #e0f3f8;
   --color-info-strong: #0a4a5e;
 
+  /* Marcas de tarjeta: colores oficiales. Como toda marca, no siguen el tema oscuro. */
+  --color-brand-plate: #ffffff;
+  --color-visa: #1a1f71;
+  --color-mastercard-red: #eb001b;
+  --color-mastercard-yellow: #f79e1b;
+  --color-mastercard-orange: #ff5f00;
+
   /* Esquinas rectas. Cada pieza pide su radio por rol: lo que se pulsa y lo que contiene. */
   --radius-control: 0;
   --radius-surface: 0;
