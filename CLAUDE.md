@@ -35,19 +35,24 @@ README.md   Único README de la entrega
 ## Frontend
 
 - Next.js se usa **solo como SPA de React**: componentes cliente, `output: 'export'`. Prohibido usar API routes, Server Actions o SSR para lógica de negocio; toda la API vive en `backend/`.
-- Estado global con Redux Toolkit (arquitectura Flux). El progreso del checkout (paso actual, producto, datos de entrega, token de tarjeta, id de transacción) se persiste para sobrevivir a un refresh.
-- Mobile first. Referencia mínima: iPhone SE (2020). Sin desbordamientos; flexbox/grid.
-- Flujo de 5 pantallas: Producto → Tarjeta/Entrega (modal) → Resumen (backdrop) → Estado final → Producto con inventario actualizado.
-- Validar tarjeta (Luhn, fecha, CVC) y detectar VISA/MasterCard.
+- Estructura en `frontend/src/`: `app/` (solo rutas y composición) → `features/` (`products`, `checkout`, `transaction`) → `shared/` (`ui`, `lib`, `api`), más `store/`. `shared/` no importa nada de `features/`, `store/` ni `app/`.
+- Estado global con Redux Toolkit siguiendo Flux: vista → `dispatch` → thunk → servicio (`shared/api`) → reducer → selector → vista. Los componentes nunca llaman a `fetch`.
+- El checkout es una máquina de pasos en el store (`PRODUCT` → `PAYMENT_FORM` → `SUMMARY` → `PROCESSING` → `RESULT` → `PRODUCT`). `redux-persist` solo sobre `checkout`, para sobrevivir a un refresh; nunca se persisten el número de tarjeta ni el CVC.
+- Mobile first. Referencia mínima: iPhone SE (2020), 375 px de ancho. Sin desbordamientos; flexbox/grid. Imágenes en WebP/SVG con dimensiones reservadas.
+- Validar tarjeta (Luhn, fecha, CVC) y detectar VISA/MasterCard con funciones puras en `shared/lib/card/`.
+- Referencia completa: `frontend/docs/arquitectura/spa-redux-flux.md`. Para crear o modificar código en `frontend/src`, usa la skill `/frontend-feature`.
 
 ## Backend: Arquitectura Hexagonal + ROP
 
 - Capas en `backend/src/`:
-  - `domain/`: entidades, errores y **ports** (interfaces). No importa NestJS, Prisma ni HTTP.
-  - `application/`: casos de uso. Dependen solo de ports.
-  - `infrastructure/`: **adapters** (controladores HTTP, repositorios Prisma, cliente de la pasarela).
-- Los controladores solo validan (DTOs con class-validator), llaman al caso de uso y mapean la respuesta. Cero lógica de negocio en controladores.
-- **Railway Oriented Programming**: los casos de uso devuelven `Result<T, E>` y no lanzan excepciones para errores de negocio. Los errores se traducen a códigos HTTP en la capa HTTP.
+  - `shared/`: `Result` (neverthrow) y `AppError`. No importa ninguna capa.
+  - `domain/`: constants, value objects, rules, entities y errores. Solo importa `shared`.
+  - `application/`: **ports** (interfaces), DTOs y casos de uso. Sin decoradores de NestJS.
+  - `infrastructure/`: **adapters** (controladores HTTP, repositorios Prisma, cliente de la pasarela) y módulos NestJS.
+- Regla de dependencias: `infrastructure → application → domain → shared`. `domain` y `application` nunca importan `@nestjs/*`, `@prisma/client` ni `class-validator`.
+- Los controladores solo validan (DTOs con class-validator), llaman al caso de uso y salen del riel. Cero lógica de negocio en controladores.
+- **Railway Oriented Programming** con `neverthrow`: ports y casos de uso devuelven `ResultAsync<T, AppError>` y no lanzan excepciones por errores de negocio. Solo los adapters convierten excepciones en `err`, y solo la capa HTTP convierte `err` en código HTTP.
+- Referencia completa: `backend/docs/arquitectura/hexagonal-ddd-rop.md`. Para crear o modificar código en `backend/src`, usa la skill `/backend-feature`.
 - Módulos obligatorios: inventario (productos), transacciones, clientes y entregas.
 - La transacción se crea en `PENDING`, luego se llama a la pasarela y se actualiza con el resultado. El inventario solo se descuenta si el pago queda aprobado.
 - La base de datos se puebla con un seed de productos ficticios; no hay endpoints para crear productos.
