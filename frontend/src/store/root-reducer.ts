@@ -1,8 +1,8 @@
 import { combineReducers } from '@reduxjs/toolkit';
 import { persistReducer } from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
 import { checkoutReducer, type CheckoutState } from '@features/checkout';
 import { productsReducer } from '@features/products';
+import { localStorageEngine } from './local-storage';
 
 /**
  * Solo el checkout sobrevive a un refresh (localStorage). Los productos se
@@ -12,7 +12,7 @@ import { productsReducer } from '@features/products';
 export const checkoutPersistConfig = {
   key: 'checkout',
   version: 1,
-  storage,
+  storage: localStorageEngine,
   blacklist: ['config'] satisfies (keyof CheckoutState)[],
 };
 
