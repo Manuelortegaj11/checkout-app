@@ -4,28 +4,37 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-// Frameworks e infraestructura que el núcleo (domain + application) no puede conocer.
+// Frameworks e infraestructura que el núcleo (shared + domain + application) no puede conocer.
 const FRAMEWORK_IMPORTS = {
-  group: [
-    '@nestjs/*',
-    '@prisma/*',
-    'class-validator',
-    'class-transformer',
-    'express',
-  ],
+  regex: '^(@nestjs|@prisma)/|^(class-validator|class-transformer|express)$',
   message:
     'El núcleo no depende de frameworks ni de infraestructura (arquitectura hexagonal).',
 };
 
-const layerImports = (layers) => ({
-  group: layers.map((layer) => `**/${layer}/**`),
-  message: 'Regla de dependencias: infrastructure → application → domain → shared.',
+// Capas prohibidas, tanto por alias (@infrastructure/...) como por ruta relativa (../infrastructure/...).
+const forbiddenLayers = (layers) => ({
+  regex: `(^@|/)(${layers.join('|')})(/|$)`,
+  message:
+    'Regla de dependencias: infrastructure → application → domain → shared. La configuración solo la lee infrastructure.',
 });
+
+// Entre carpetas se importa con alias; las rutas relativas solo para vecinos cercanos.
+const LONG_RELATIVE_IMPORT = {
+  regex: '^\\.\\./\\.\\./',
+  message:
+    'Usa los alias (@shared, @domain, @application, @infrastructure, @config) en lugar de subir más de un nivel.',
+};
+
+const restrictImports = (...patterns) => [
+  'error',
+  { patterns: [...patterns, LONG_RELATIVE_IMPORT] },
+];
 
 // ROP: los errores de negocio viajan como err(...), no como excepciones.
 const NO_THROW = {
   selector: 'ThrowStatement',
-  message: 'Devuelve err(...) en lugar de lanzar (Railway Oriented Programming).',
+  message:
+    'Devuelve err(...) en lugar de lanzar (Railway Oriented Programming).',
 };
 
 export default tseslint.config(
@@ -55,48 +64,37 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'no-restricted-imports': restrictImports(),
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
   {
     files: ['src/shared/**/*.ts'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            FRAMEWORK_IMPORTS,
-            layerImports(['domain', 'application', 'infrastructure']),
-          ],
-        },
-      ],
+      'no-restricted-imports': restrictImports(
+        FRAMEWORK_IMPORTS,
+        forbiddenLayers(['domain', 'application', 'infrastructure', 'config']),
+      ),
       'no-restricted-syntax': ['error', NO_THROW],
     },
   },
   {
     files: ['src/domain/**/*.ts'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            FRAMEWORK_IMPORTS,
-            layerImports(['application', 'infrastructure']),
-          ],
-        },
-      ],
+      'no-restricted-imports': restrictImports(
+        FRAMEWORK_IMPORTS,
+        forbiddenLayers(['application', 'infrastructure', 'config']),
+      ),
       'no-restricted-syntax': ['error', NO_THROW],
     },
   },
   {
     files: ['src/application/**/*.ts'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [FRAMEWORK_IMPORTS, layerImports(['infrastructure'])],
-        },
-      ],
+      'no-restricted-imports': restrictImports(
+        FRAMEWORK_IMPORTS,
+        forbiddenLayers(['infrastructure', 'config']),
+      ),
       'no-restricted-syntax': ['error', NO_THROW],
     },
   },

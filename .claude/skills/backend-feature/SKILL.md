@@ -28,12 +28,12 @@ Sigue este orden. No saltes al controlador ni a Prisma antes de tener el caso de
 | 5 | Entity | `domain/entities/<feature>.entity.ts` | Constructor privado, `create()` → `Result`, `reconstitute()`, `toPlainObject()`. |
 | 6 | Port | `application/ports/<feature>.repository.port.ts` | Interfaz + token `Symbol`. Métodos devuelven `ResultAsync<T, AppError>`. |
 | 7 | DTOs | `application/dtos/<feature>/` | Tipos planos, sin decoradores. |
-| 8 | Use Case | `application/use-cases/<feature>/<accion>.use-case.ts` | Pipeline `andThen` / `map`. Sin `try/catch`, sin `throw`, sin decoradores de NestJS. |
+| 8 | Use Case | `application/use-cases/<feature>/<accion>.use-case.ts` | `implements UseCase<Input, Output>`. Pipeline `andThen` / `map`. Sin `try/catch`, sin `throw`, sin `@Injectable()` ni `@Inject()`. |
 | 9 | Tests | `<accion>.use-case.spec.ts` junto al caso de uso | Mocks de los ports con `okAsync` / `errAsync`. Camino feliz + cada rama de error. |
 | 10 | Prisma | `prisma/schema.prisma` + migración | Solo cuando el caso de uso ya pasa sus tests. |
-| 11 | Adapter | `infrastructure/persistence/repositories/` o `infrastructure/payment-gateway/` | Envolver cada llamada con `ResultAsync.fromPromise` y mapear fila ↔ entidad. |
-| 12 | HTTP | `infrastructure/http/` | Request DTO con class-validator + Swagger; el controlador solo llama a `unwrapOrThrowHttp(useCase.execute(...))`. |
-| 13 | Módulo | `infrastructure/modules/<feature>.module.ts` | `{ provide: TOKEN, useClass: Adapter }` y el caso de uso con `useFactory` + `inject`. |
+| 11 | Adapter | `infrastructure/persistence/repositories/` o `infrastructure/payment-gateway/` | Envolver cada llamada con `ResultAsync.fromPromise` y mapear fila ↔ entidad. Exportar `<NOMBRE>_PROVIDER = { provide: TOKEN, useClass: Adapter }` en el mismo archivo. |
+| 12 | HTTP | `infrastructure/http/` | Request DTO con class-validator + Swagger; el controlador inyecta el caso de uso por su clase y solo llama a `unwrapOrThrowHttp(useCase.execute(...))`. |
+| 13 | Módulos | `infrastructure/modules/<feature>/` | `<feature>.repositories.module.ts` y `<feature>.adapters.module.ts` exportan sus providers; `<feature>.use-cases.module.ts` declara `*_USE_CASE_PROVIDER = useCaseProvider(UseCase, [TOKENS…])` e importa los módulos de repositorios/adapters que necesite (también de otros contextos); `<feature>.module.ts` tiene los controladores. Registra el `<feature>.module.ts` en `app.module.ts`. |
 
 Si la funcionalidad solo toca algunas capas (por ejemplo, una regla nueva), haz solo esos pasos, pero siempre con su test.
 
@@ -51,8 +51,16 @@ Si la funcionalidad solo toca algunas capas (por ejemplo, una regla nueva), haz 
 infrastructure ──► application ──► domain ──► shared
 ```
 
-- `domain` y `application` nunca importan `@nestjs/*`, `@prisma/client`, `class-validator`, `class-transformer` ni `infrastructure/`.
-- `domain` nunca importa `application/`.
+| Capa | Puede importar |
+|------|----------------|
+| `shared` | Solo `neverthrow` |
+| `domain` | `@shared` |
+| `application` | `@domain`, `@shared` |
+| `infrastructure` | Todo, incluido `@config` |
+
+- `domain` y `application` nunca importan frameworks (`@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer`, `express`), `@config` ni `@infrastructure`. Si un caso de uso necesita configuración, la pide a un port.
+- Entre carpetas, imports **con alias** (`@shared/…`, `@domain/…`, `@application/…`, `@infrastructure/…`, `@config/…`). Nunca `../../`.
+- Ningún provider se registra dos veces: para usar un repositorio de otro contexto, importa su `repositories.module`.
 - La pasarela se nombra de forma genérica (`PaymentGateway`); su nombre comercial no aparece en el código.
 
 ## Al terminar

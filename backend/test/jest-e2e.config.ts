@@ -8,6 +8,11 @@ const config: Config = {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
   testEnvironment: 'node',
+  // Alias de tsconfig.json (paths).
+  moduleNameMapper: {
+    '^@(shared|domain|application|infrastructure|config)/(.*)$':
+      '<rootDir>/../src/$1/$2',
+  },
 };
 
 export default config;

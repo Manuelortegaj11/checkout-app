@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { appError, type AppErrorType } from '../../../shared/errors/app-error';
-import { err, errAsync, ok, okAsync } from '../../../shared/result';
+import { appError, type AppErrorType } from '@shared/errors/app-error';
+import { err, errAsync, ok, okAsync } from '@shared/result';
 import { toHttpException, unwrapOrThrowHttp } from './app-error.http-mapper';
 
 describe('toHttpException', () => {

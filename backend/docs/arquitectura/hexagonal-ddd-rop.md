@@ -106,7 +106,9 @@ graph TB
 | **Infrastructure** | Request DTO | Contrato HTTP: validación con class-validator y documentación con Swagger. |
 | **Infrastructure** | Controller | Único punto de salida del riel: ejecuta el caso de uso y hace `match` → respuesta o `HttpException`. |
 | **Infrastructure** | Error Mapper | Traduce `AppError.type` a código HTTP sin filtrar detalles internos. |
-| **Infrastructure** | Module | Conecta cada port con su adapter y construye los casos de uso con `useFactory`. |
+| **Application** | UseCase port | Interfaz común `UseCase<Input, Output>`: todo caso de uso expone `execute(input)` y devuelve `ResultAsync`. |
+| **Infrastructure** | Providers | `*_PROVIDER`: registran un adapter bajo el token de su port, o un caso de uso con `useCaseProvider`. Viven solo en infraestructura. |
+| **Infrastructure** | Modules | Por contexto: `repositories`, `adapters`, `use-cases` y el módulo del contexto con sus controladores. |
 
 ## Árbol del patrón arquitectónico
 
@@ -133,7 +135,7 @@ backend/
 │   │   └── errors/                     # product.errors.ts, transaction.errors.ts…
 │   │
 │   ├── application/                    # ORQUESTACIÓN: importa domain y shared
-│   │   ├── ports/                      # <feature>.repository.port.ts, payment-gateway.port.ts
+│   │   ├── ports/                      # use-case.port.ts, <feature>.repository.port.ts, payment-gateway.port.ts
 │   │   ├── dtos/<feature>/             # <accion>.input.ts · <feature>.output.ts
 │   │   └── use-cases/<feature>/        # <accion>.use-case.ts · <accion>.use-case.spec.ts · <feature>.mapper.ts
 │   │
@@ -146,8 +148,18 @@ backend/
 │       ├── http/
 │       │   ├── controllers/            # <feature>.controller.ts
 │       │   ├── dtos/                   # <accion>.request.ts · <feature>.response.ts
-│       │   └── errors/                 # app-error.http-mapper.ts
-│       └── modules/                    # <feature>.module.ts
+│       │   ├── errors/                 # app-error.http-mapper.ts, validation-exception.factory.ts
+│       │   ├── filters/                # all-exceptions.filter.ts: formato único { code, message }
+│       │   └── configure-app.ts        # Prefijo, helmet, CORS, validación, Swagger
+│       └── modules/                    # CABLEADO de NestJS, un directorio por contexto
+│           ├── use-case.provider.ts    # useCaseProvider(): registra casos de uso sin decoradores
+│           ├── persistence/            # persistence.module.ts: PrismaService (global)
+│           ├── health/                 # health.module.ts
+│           └── <feature>/
+│               ├── <feature>.repositories.module.ts   # Adapters de persistencia (exporta sus providers)
+│               ├── <feature>.adapters.module.ts       # Otros adapters de salida (p. ej. pasarela)
+│               ├── <feature>.use-cases.module.ts      # *_USE_CASE_PROVIDER con useCaseProvider
+│               └── <feature>.module.ts                # Controladores; importa el de use-cases
 └── test/
     └── e2e/                            # Tests end-to-end de la API
 ```
@@ -156,10 +168,11 @@ Módulos del negocio (`<feature>`): `product` (inventario), `customer`, `transac
 
 ### Convenciones de nombres
 
-- Archivos en `kebab-case` con sufijo de rol: `.entity.ts`, `.vo.ts`, `.rules.ts`, `.errors.ts`, `.port.ts`, `.use-case.ts`, `.prisma.repository.ts`, `.controller.ts`, `.request.ts`, `.response.ts`, `.module.ts`.
+- Archivos en `kebab-case` con sufijo de rol: `.entity.ts`, `.vo.ts`, `.rules.ts`, `.errors.ts`, `.port.ts`, `.use-case.ts`, `.prisma.repository.ts`, `.controller.ts`, `.request.ts`, `.response.ts`, `.repositories.module.ts`, `.adapters.module.ts`, `.use-cases.module.ts`, `.module.ts`.
 - Tests unitarios `*.spec.ts` junto al archivo que prueban.
 - Clases en `PascalCase`, funciones y variables en `camelCase`, constantes del dominio en `UPPER_SNAKE_CASE`.
 - Tokens de inyección de los ports: `export const PRODUCT_REPOSITORY = Symbol('PRODUCT_REPOSITORY')`, junto a la interfaz.
+- Providers: `<NOMBRE>_PROVIDER` (`PRODUCT_REPOSITORY_PROVIDER`, `CREATE_TRANSACTION_USE_CASE_PROVIDER`).
 - Nombres genéricos para la pasarela: `PaymentGateway`, nunca el nombre comercial del proveedor.
 
 ### Regla de dependencias
@@ -174,7 +187,106 @@ Las flechas indican quién puede importar a quién. Ninguna capa importa a una c
 constants, errors  ──►  value-objects  ──►  rules, entities
 ```
 
-`domain` y `application` **nunca** importan `@nestjs/*`, `@prisma/client`, `class-validator` ni `class-transformer`.
+| Capa | Puede importar | Nunca importa |
+|------|----------------|---------------|
+| `shared` | `neverthrow` | Ninguna capa, `config`, frameworks |
+| `domain` | `shared` | `application`, `infrastructure`, `config`, frameworks |
+| `application` | `domain`, `shared` | `infrastructure`, `config`, frameworks |
+| `infrastructure` | Todo | — |
+| `config` | `class-validator`, `class-transformer` | Solo lo leen `infrastructure`, `app.module.ts` y `main.ts` |
+
+"Frameworks" son `@nestjs/*`, `@prisma/*`, `class-validator`, `class-transformer` y `express`. Si un caso de uso necesita un valor de configuración (por ejemplo, las tarifas), lo pide a un **port** (`CheckoutSettings`) que implementa la infraestructura leyendo `config`.
+
+### Alias de imports
+
+| Alias | Carpeta |
+|-------|---------|
+| `@shared/*` | `src/shared/*` |
+| `@domain/*` | `src/domain/*` |
+| `@application/*` | `src/application/*` |
+| `@infrastructure/*` | `src/infrastructure/*` |
+| `@config/*` | `src/config/*` |
+
+- Entre carpetas distintas se importa **siempre con alias**: `import { appError } from '@shared/errors/app-error'`.
+- Las rutas relativas solo se usan entre vecinos cercanos (`./x`, `../x`). Subir dos niveles (`../../`) es error de lint.
+- Los alias están definidos en `tsconfig.json` (`paths`) y en `moduleNameMapper` de Jest; `nest build` los reescribe al compilar.
+
+### Cómo se hace cumplir
+
+`eslint.config.mjs` convierte esta tabla en errores de lint. Detecta los imports prohibidos **tanto por alias como por ruta relativa** (`@infrastructure/...` y `../infrastructure/...`), los frameworks en el núcleo y cualquier `throw` en `shared`, `domain` y `application`. Un import que viole la regla de dependencias no puede llegar a `staging`.
+
+## Inyección de dependencias y módulos
+
+El núcleo no conoce NestJS, así que la inyección se resuelve **solo en infraestructura** con tres piezas: tokens, providers y módulos por contexto.
+
+### 1. Tokens: junto al port
+
+Cada port exporta su interfaz y un `Symbol` como token. El `Symbol` es único: dos tokens nunca pueden chocar por tener el mismo texto.
+
+```ts
+// application/ports/product.repository.port.ts
+export const PRODUCT_REPOSITORY = Symbol('PRODUCT_REPOSITORY');
+
+export interface ProductRepositoryPort {
+  findById(id: string): ResultAsync<Product | null, AppError>;
+}
+```
+
+Los casos de uso implementan el port genérico `UseCase<Input, Output>` y usan **su propia clase como token**.
+
+### 2. Providers: solo en infraestructura
+
+- **Adapters:** el archivo del adapter exporta su provider, que lo registra bajo el token del port.
+
+  ```ts
+  // infrastructure/persistence/repositories/product.prisma.repository.ts
+  export const PRODUCT_REPOSITORY_PROVIDER: Provider = {
+    provide: PRODUCT_REPOSITORY,
+    useClass: ProductPrismaRepository,
+  };
+  ```
+
+- **Casos de uso:** `useCaseProvider` construye la clase inyectando sus ports **en el orden del constructor**. TypeScript exige un token por cada parámetro. Estos providers **nunca** se declaran en `application`: el caso de uso no lleva `@Injectable()` ni `@Inject()`.
+
+  ```ts
+  // infrastructure/modules/transaction/transaction.use-cases.module.ts
+  export const CREATE_TRANSACTION_USE_CASE_PROVIDER = useCaseProvider(
+    CreateTransactionUseCase,
+    [PRODUCT_REPOSITORY, CUSTOMER_REPOSITORY, TRANSACTION_REPOSITORY, CHECKOUT_SETTINGS],
+  );
+  ```
+
+### 3. Módulos por contexto
+
+Cada contexto (`product`, `customer`, `transaction`, `delivery`) tiene su carpeta en `infrastructure/modules/<feature>/` con hasta cuatro módulos. Cada uno solo **exporta** lo que otros necesitan.
+
+```mermaid
+flowchart LR
+    subgraph product
+        PR["ProductRepositoriesModule<br/>exporta PRODUCT_REPOSITORY"]
+    end
+    subgraph transaction
+        TR["TransactionRepositoriesModule<br/>exporta TRANSACTION_REPOSITORY"]
+        TA["TransactionAdaptersModule<br/>exporta PAYMENT_GATEWAY"]
+        TU["TransactionUseCasesModule<br/>exporta los casos de uso"]
+        TM["TransactionModule<br/>controladores"]
+    end
+    PR --> TU
+    TR --> TU
+    TA --> TU
+    TU --> TM
+```
+
+| Módulo | Contiene | Exporta |
+|--------|----------|---------|
+| `<feature>.repositories.module.ts` | `*_REPOSITORY_PROVIDER` del contexto | Los tokens de sus repositorios |
+| `<feature>.adapters.module.ts` | Otros adapters de salida (pasarela, configuración) | Los tokens de esos ports |
+| `<feature>.use-cases.module.ts` | `*_USE_CASE_PROVIDER`; importa los módulos de repositorios y adapters que necesita, **aunque sean de otro contexto** | Los casos de uso |
+| `<feature>.module.ts` | Los controladores; importa su módulo de use-cases | Nada |
+
+- Un contexto usa repositorios de otro importando su `repositories.module`, **nunca** registrando el mismo provider dos veces. Ejemplo: los casos de uso de transacciones importan `ProductRepositoriesModule`.
+- `app.module.ts` solo importa los `<feature>.module.ts` y los módulos globales (`ConfigModule`, `ThrottlerModule`, `PersistenceModule`).
+- Un contexto crea solo los módulos que necesita: `health` solo tiene `health.module.ts`.
 
 ### Qué va en `domain/constants`
 
@@ -346,7 +458,9 @@ export interface ProductRepositoryPort {
 
 ```ts
 // application/use-cases/transaction/create-transaction.use-case.ts
-export class CreateTransactionUseCase {
+export class CreateTransactionUseCase
+  implements UseCase<CreateTransactionInput, TransactionOutput>
+{
   constructor(
     private readonly products: ProductRepositoryPort,
     private readonly transactions: TransactionRepositoryPort,
@@ -378,7 +492,7 @@ export class CreateTransactionUseCase {
 }
 ```
 
-El caso de uso **no tiene decoradores de NestJS**: recibe los ports por constructor y el módulo lo construye con `useFactory`.
+El caso de uso **no tiene decoradores de NestJS**: implementa `UseCase`, recibe los ports por constructor y la infraestructura lo registra con `useCaseProvider`.
 
 ### 4. Test del Use Case
 
@@ -409,6 +523,11 @@ export class ProductPrismaRepository implements ProductRepositoryPort {
     ).map((row) => (row ? ProductPrismaMapper.toDomain(row) : null));
   }
 }
+
+export const PRODUCT_REPOSITORY_PROVIDER: Provider = {
+  provide: PRODUCT_REPOSITORY,
+  useClass: ProductPrismaRepository,
+};
 ```
 
 ### 6. Controller y error mapper
@@ -451,22 +570,40 @@ La respuesta de error nunca incluye `cause`: los detalles internos se registran 
 ### 7. Módulo
 
 ```ts
-// infrastructure/modules/transaction.module.ts
+// infrastructure/modules/product/product.repositories.module.ts
+const providers = [PRODUCT_REPOSITORY_PROVIDER];
+
+@Module({ providers, exports: providers })
+export class ProductRepositoriesModule {}
+```
+
+```ts
+// infrastructure/modules/transaction/transaction.use-cases.module.ts
+export const CREATE_TRANSACTION_USE_CASE_PROVIDER = useCaseProvider(
+  CreateTransactionUseCase,
+  [PRODUCT_REPOSITORY, TRANSACTION_REPOSITORY],
+);
+
+const providers = [CREATE_TRANSACTION_USE_CASE_PROVIDER];
+
 @Module({
+  imports: [ProductRepositoriesModule, TransactionRepositoriesModule],
+  providers,
+  exports: providers,
+})
+export class TransactionUseCasesModule {}
+```
+
+```ts
+// infrastructure/modules/transaction/transaction.module.ts
+@Module({
+  imports: [TransactionUseCasesModule],
   controllers: [TransactionController],
-  providers: [
-    { provide: PRODUCT_REPOSITORY, useClass: ProductPrismaRepository },
-    { provide: TRANSACTION_REPOSITORY, useClass: TransactionPrismaRepository },
-    {
-      provide: CreateTransactionUseCase,
-      useFactory: (products: ProductRepositoryPort, transactions: TransactionRepositoryPort) =>
-        new CreateTransactionUseCase(products, transactions),
-      inject: [PRODUCT_REPOSITORY, TRANSACTION_REPOSITORY],
-    },
-  ],
 })
 export class TransactionModule {}
 ```
+
+El controlador inyecta el caso de uso por su clase (`constructor(private readonly createTransaction: CreateTransactionUseCase)`), que es su token.
 
 ## El riel del pago
 
@@ -548,8 +685,11 @@ Cada capa tiene una única responsabilidad, y cada error tiene un tipo y un cód
 
 ## Checklist de revisión
 
-- [ ] `domain/` y `application/` no importan `@nestjs/*`, `@prisma/client`, `class-validator` ni `infrastructure/`.
+- [ ] `domain/` y `application/` no importan `@nestjs/*`, `@prisma/client`, `class-validator`, `config` ni `infrastructure/`.
 - [ ] `domain/` no importa `application/`.
+- [ ] Los imports entre carpetas usan alias (`@shared`, `@domain`, `@application`, `@infrastructure`, `@config`).
+- [ ] Los casos de uso implementan `UseCase<Input, Output>` y no tienen decoradores; se registran con `useCaseProvider` en su `<feature>.use-cases.module.ts`.
+- [ ] Ningún provider se registra dos veces: los repositorios de otro contexto se obtienen importando su `repositories.module`.
 - [ ] No hay `throw` de negocio en `domain/` ni `application/`.
 - [ ] Los ports devuelven `ResultAsync<T, AppError>`.
 - [ ] Toda llamada a Prisma o a la pasarela está envuelta con `fromPromise` / `fromThrowable`.
