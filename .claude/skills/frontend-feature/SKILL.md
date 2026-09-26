@@ -1,6 +1,6 @@
 ---
 name: frontend-feature
-description: Guía paso a paso para crear o modificar una funcionalidad del frontend (pantalla, componente, formulario, slice, thunk, selector, servicio de API, validación o estilos) siguiendo SPA con Next.js + Redux Toolkit (Flux), la máquina de pasos del checkout y las reglas de UI mobile first, imágenes, seguridad y tests. Úsala siempre que vayas a escribir o cambiar código en frontend/src.
+description: Guía paso a paso para crear o modificar una funcionalidad del frontend (pantalla, componente, formulario, slice, thunk, selector, servicio de API, validación o estilos) siguiendo SPA con ReactJS + Vite + Redux Toolkit (Flux), la máquina de pasos del checkout y las reglas de UI mobile first, imágenes, seguridad y tests. Úsala siempre que vayas a escribir o cambiar código en frontend/src.
 ---
 
 # Funcionalidad de frontend: SPA + Redux (Flux)
@@ -28,7 +28,7 @@ La referencia completa está en `frontend/docs/arquitectura/spa-redux-flux.md`. 
 | 7 | Componentes presentacionales | `features/<feature>/components/` | Solo props y callbacks. Sin Redux, sin API. |
 | 8 | Componente contenedor | `features/<feature>/components/` | Lee con `useAppSelector`, despacha con `useAppDispatch`. |
 | 9 | Tests de componentes | `*.test.tsx` | React Testing Library con `renderWithStore`; consultar por rol y label. |
-| 10 | Composición | `app/` | Solo elige qué mostrar según el paso. Sin lógica. |
+| 10 | Composición | `app/App.tsx` | Solo elige qué pantalla mostrar según `checkout.step`. Sin router y sin lógica. |
 | 11 | Exportar | `features/<feature>/index.ts` | Otras features importan solo desde aquí. |
 
 Si la funcionalidad solo toca algunas capas, haz solo esos pasos, pero siempre con su test.
@@ -47,7 +47,8 @@ Si la funcionalidad solo toca algunas capas, haz solo esos pasos, pero siempre c
 - Imágenes: WebP o SVG, `width`/`height` o `aspect-ratio`, `object-fit`, `loading="lazy"` fuera de la primera pantalla.
 - Modal y backdrop: `role="dialog"`, `aria-modal`, foco atrapado, cierre con `Escape`.
 - Inputs de tarjeta: `inputMode="numeric"`, `autoComplete` (`cc-number`, `cc-exp`, `cc-csc`), errores con `aria-describedby`.
-- `'use client'` en todo componente con estado, hooks o Redux. Nada de API routes, Server Actions ni SSR con lógica.
+- Solo React: nunca añadir un framework (Next.js, Remix, React Router en modo framework, Gatsby…). Vite solo empaqueta.
+- `import.meta.env` solo en `shared/config/env.ts`; en Jest ese módulo se sustituye por uno de prueba.
 - La pasarela se nombra de forma genérica (`paymentGateway`); su nombre comercial no aparece en el código.
 
 ## Al terminar
