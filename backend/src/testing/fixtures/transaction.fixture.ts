@@ -1,3 +1,4 @@
+import type { CreateTransactionInput } from '@application/dtos/transaction/create-transaction.input';
 import {
   Transaction,
   type NewTransaction,
@@ -29,3 +30,18 @@ export const aNewTransaction = (
 export const aTransaction = (
   overrides: Partial<NewTransaction> = {},
 ): Transaction => Transaction.create(aNewTransaction(overrides));
+
+/** Petición del checkout para comprar 1 unidad del producto del fixture. */
+export const aCreateTransactionInput = (
+  overrides: Partial<CreateTransactionInput> = {},
+): CreateTransactionInput => ({
+  productId: PRODUCT_ID,
+  quantity: 1,
+  customer: {
+    fullName: 'Ana Gómez',
+    email: 'ana@example.com',
+    phone: '3001234567',
+  },
+  delivery: aDeliveryAddress(),
+  ...overrides,
+});
