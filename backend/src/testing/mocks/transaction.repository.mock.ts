@@ -5,4 +5,5 @@ export const mockTransactionRepository =
     create: jest.fn(),
     findViewById: jest.fn(),
     claimPaymentSubmission: jest.fn(),
+    savePaymentResult: jest.fn(),
   });

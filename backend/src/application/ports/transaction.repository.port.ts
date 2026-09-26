@@ -21,4 +21,11 @@ export interface TransactionRepositoryPort {
   claimPaymentSubmission(
     transaction: Transaction,
   ): ResultAsync<boolean, AppError>;
+
+  /**
+   * Guarda la respuesta de la pasarela. Si el estado es final, liquida en una
+   * sola transacción de base de datos: estado, entrega y, si se aprobó, stock.
+   * Idempotente: si otra petición ya la liquidó, no hace nada.
+   */
+  savePaymentResult(transaction: Transaction): ResultAsync<void, AppError>;
 }
