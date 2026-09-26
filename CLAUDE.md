@@ -47,7 +47,7 @@ README.md   Único README de la entrega
 - Estado global con Redux Toolkit siguiendo Flux: vista → `dispatch` → thunk → servicio (`shared/api`) → reducer → selector → vista. Los componentes nunca llaman a `fetch`.
 - El checkout es una máquina de pasos en el store (`PRODUCT` → `PAYMENT_FORM` → `SUMMARY` → `PROCESSING` → `RESULT` → `PRODUCT`). `redux-persist` solo sobre `checkout`, para sobrevivir a un refresh; nunca se persisten el número de tarjeta ni el CVC.
 - Mobile first. Referencia mínima: iPhone SE (2020), 375 px de ancho. Sin desbordamientos; flexbox/grid. Imágenes en WebP/SVG con dimensiones reservadas.
-- **Identidad visual: Pletus.** La tienda se llama Pletus y no usa logotipo ni mascota: el nombre va escrito. Azul principal `#0066FF`, secundario `#00AAFF`, neutros con tinta azul, tipografía Inter, esquinas rectas, bordes de 1 px y tema oscuro automático. Todo color, sombra y radio sale de los tokens de `shared/ui/theme.css`; los componentes nunca usan valores literales. Íconos con `lucide-react`.
+- **Identidad visual: Templetus.** La tienda se llama Templetus y no usa logotipo ni mascota: el nombre va escrito. Azul principal `#0066FF`, secundario `#00AAFF`, neutros con tinta azul, tipografía Inter, esquinas rectas, bordes de 1 px y tema oscuro automático. Todo color, sombra y radio sale de los tokens de `shared/ui/theme.css`; los componentes nunca usan valores literales. Íconos con `lucide-react`.
 - Validar tarjeta (Luhn, fecha, CVC) y detectar VISA/MasterCard con funciones puras en `shared/lib/card/`.
 - Referencia completa: `frontend/docs/arquitectura/spa-redux-flux.md`. Para crear o modificar código en `frontend/src`, usa la skill `/frontend-feature`.
 

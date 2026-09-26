@@ -1,7 +1,7 @@
 {
   "name": "checkout-web",
   "version": "0.1.0",
-  "description": "SPA del checkout de Pletus: producto, pago con tarjeta, resumen y resultado",
+  "description": "SPA del checkout de Templetus: producto, pago con tarjeta, resumen y resultado",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",

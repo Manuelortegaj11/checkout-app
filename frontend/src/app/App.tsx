@@ -2,7 +2,7 @@
 export function App() {
   return (
     <main>
-      <h1>Pletus</h1>
+      <h1>Templetus</h1>
     </main>
   );
 }

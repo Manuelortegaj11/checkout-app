@@ -105,7 +105,7 @@ frontend/
 │   │       └── index.ts
 │   │
 │   ├── shared/                         # No importa nada de features/ ni app/
-│   │   ├── ui/                         # theme.css (tokens de Pletus) + Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
+│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Input, Modal, Backdrop, Spinner, CardBrandIcon
 │   │   ├── lib/
 │   │   │   ├── card/                   # luhn.ts, card-brand.ts, expiry.ts, cvc.ts
 │   │   │   ├── format/                 # currency.ts
@@ -172,9 +172,9 @@ app ──► features ──► shared
 
 La marca se detecta **mientras se escribe** y se muestra su logo; el número se formatea en grupos de 4.
 
-## Identidad visual: Pletus
+## Identidad visual: Templetus
 
-La tienda se llama **Pletus**. No usa logotipo ni mascota: la marca se reconoce por el nombre escrito, la paleta, la tipografía y el estilo de los componentes. Los íconos son de **lucide-react**.
+La tienda se llama **Templetus**. No usa logotipo ni mascota: la marca se reconoce por el nombre escrito, la paleta, la tipografía y el estilo de los componentes. Los íconos son de **lucide-react**.
 
 ### Tokens
 
