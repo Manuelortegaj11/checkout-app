@@ -4,13 +4,21 @@ import {
   contactChanged,
   paymentDetailsSubmitted,
 } from '@features/checkout/checkout.slice';
-import { fetchCheckoutConfig } from '@features/checkout/checkout.thunks';
+import {
+  fetchCheckoutConfig,
+  placeOrder,
+} from '@features/checkout/checkout.thunks';
+import { createTransaction } from '@features/transaction';
 import { makeStore } from '@store/index';
 import {
   aCheckoutConfig,
   aTokenizedCard,
 } from '@testing/fixtures/checkout.fixture';
 import { PRODUCT_ID } from '@testing/fixtures/product.fixture';
+import {
+  aTransaction,
+  TRANSACTION_ID,
+} from '@testing/fixtures/transaction.fixture';
 import {
   persistedCheckout,
   rehydrated,
@@ -67,5 +75,23 @@ describe('persistencia del checkout', () => {
       contact: { email: 'ana@example.com' },
       config: { status: 'idle', data: null },
     });
+  });
+
+  it('guarda el id de la transacción en curso, pero no el estado del pago', async () => {
+    const store = makeStore();
+    const persistor = persistStore(store);
+    await rehydrated(persistor);
+
+    store.dispatch(placeOrder.pending('r'));
+    store.dispatch(
+      createTransaction.fulfilled(aTransaction(), 'r', {} as never),
+    );
+    await persistor.flush();
+
+    expect(persistedCheckout()).toMatchObject({
+      step: 'PROCESSING',
+      transactionId: TRANSACTION_ID,
+    });
+    expect(persistedCheckout()).not.toHaveProperty('order');
   });
 });

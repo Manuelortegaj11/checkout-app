@@ -31,44 +31,66 @@ Las cinco pantallas del enunciado son estados de una máquina guardada en `check
 ```mermaid
 stateDiagram-v2
     [*] --> PRODUCT
-    PRODUCT --> PAYMENT_FORM: "Pagar con tarjeta"
-    PAYMENT_FORM --> PRODUCT: cerrar modal
-    PAYMENT_FORM --> SUMMARY: tarjeta tokenizada + entrega válida
-    SUMMARY --> PAYMENT_FORM: editar datos
-    SUMMARY --> PROCESSING: pagar
-    PROCESSING --> RESULT: estado final (APPROVED / DECLINED / ERROR)
-    RESULT --> PRODUCT: volver (recarga inventario)
+    PRODUCT --> PAYMENT_FORM: checkoutStarted ("Pagar con tarjeta de crédito")
+    PAYMENT_FORM --> PRODUCT: checkoutClosed
+    PAYMENT_FORM --> SUMMARY: paymentDetailsSubmitted (tarjeta tokenizada)
+    SUMMARY --> PAYMENT_FORM: paymentFormReopened (editar datos)
+    SUMMARY --> PRODUCT: checkoutClosed
+    SUMMARY --> PROCESSING: placeOrder (pagar)
+    PROCESSING --> SUMMARY: el cobro no llegó a enviarse
+    PROCESSING --> RESULT: estado final (APPROVED / DECLINED / VOIDED / ERROR)
+    RESULT --> PAYMENT_FORM: paymentFormReopened (intentar de nuevo)
+    RESULT --> PRODUCT: finishCheckout (recarga el inventario)
 ```
 
 | Paso | Pantalla del enunciado | Cómo se muestra |
 |------|------------------------|-----------------|
-| `PRODUCT` | 1 y 5. Página del producto | Página principal |
-| `PAYMENT_FORM` | 2. Tarjeta y entrega | Modal sobre la página del producto |
-| `SUMMARY` | 3. Resumen del pago | Backdrop sobre la página del producto |
-| `PROCESSING` | Transición mientras se paga | Backdrop con indicador de carga |
-| `RESULT` | 4. Estado final | Pantalla de resultado |
+| `PRODUCT` | 1. Página del producto | Catálogo con stock y botón de pago |
+| `PAYMENT_FORM` | 2. Tarjeta y entrega | Modal sobre el catálogo |
+| `SUMMARY` | 3. Resumen del pago | Backdrop: desglose, contratos y botón de pago |
+| `PROCESSING` | 4. Procesamiento | Backdrop que no se puede cerrar, con el avance del pago |
+| `RESULT` | 5. Resultado | Backdrop con el resultado; al cerrarlo, vuelve al catálogo con el inventario actualizado |
 
 Reglas:
 
 - **Sin router:** la pantalla visible se deriva **solo** de `checkout.step`. El store es la única fuente de verdad, así que una URL nunca puede contradecir el paso persistido tras un refresh. Nginx sirve siempre `index.html`.
-- Las transiciones se hacen **solo** con acciones del slice (`goToStep`, `resetCheckout`) o en los `fulfilled` de los thunks. Un componente nunca escribe el paso "a mano".
-- Al rehidratar en `PROCESSING` con un `transactionId`, la app **reanuda la consulta del estado** de la transacción en vez de volver a cobrar.
-- `resetCheckout` al volver a `PRODUCT` limpia el checkout y vuelve a pedir el producto para mostrar el inventario actualizado.
+- Las transiciones son **acciones con intención** del slice (`checkoutStarted`, `paymentFormReopened`, `checkoutFinished`…) o los resultados de los thunks (`placeOrder`, `pollTransaction`). No existe un `goToStep` genérico: un componente no puede saltarse pasos.
+- La dependencia entre features va en un solo sentido: `checkout` usa `transaction` (crear, cobrar y consultar); `transaction` no conoce el checkout.
 
 ## Qué se persiste y qué no
 
-| Se persiste (`localStorage`) | **Nunca** se persiste |
-|------------------------------|-----------------------|
-| Paso actual | Número de tarjeta completo |
-| Producto y cantidad elegidos | CVC |
-| Datos de entrega | Llave privada o de integridad (no existen en el front) |
-| Token de la tarjeta, marca y últimos 4 dígitos | Respuestas crudas de la pasarela |
-| Tarifas calculadas del resumen | |
-| `transactionId` y estado de la transacción | |
+| Se persiste (`localStorage`) | No se persiste | **Nunca** existe en el front |
+|------------------------------|----------------|------------------------------|
+| Paso actual | Productos: se piden siempre, con el stock real | Número de tarjeta en el store |
+| Producto y cantidad | Configuración: sus tokens de aceptación son de un solo uso | CVC en el store |
+| Borradores de contacto y dirección | Estado del pago en curso (`order`) | Llave privada y secreto de integridad |
+| Token de la tarjeta, marca y últimos 4 dígitos | Datos de la transacción: se piden al backend por su id | |
+| `transactionId` | | |
 
-- `redux-persist` se configura con **`whitelist: ['checkout']`**. Los productos se vuelven a pedir siempre, para que el inventario no quede desactualizado.
+- `redux-persist` envuelve solo el slice `checkout`, con `blacklist: ['config', 'order']`. Los demás slices no se persisten.
 - El número de tarjeta y el CVC viven solo en el **estado local del formulario**. En cuanto se tokenizan, se descartan: al store llega solo el token, la marca y los últimos 4 dígitos.
 - Los datos que se guardan en `localStorage` quedan en el navegador del cliente: nada que no sea necesario para reanudar el flujo.
+
+## El pago (pantallas 3 a 5)
+
+`placeOrder` (thunk del checkout) hace el paso 4 del enunciado:
+
+1. Si no hay transacción de un intento anterior, la abre en `PENDING` (`POST /api/transactions`) y guarda su id **en cuanto existe**: si hay un refresh durante el cobro, con ese id se retoma.
+2. La cobra (`POST /api/transactions/:id/payment`) con el token de la tarjeta y los dos contratos aceptados. La respuesta trae el estado final o `PENDING`.
+3. Si el cobro falla o no hay respuesta, pregunta al backend si llegó a enviarse. Si se envió, sigue con ese resultado; si no, vuelve al resumen con el motivo y el cliente puede reintentar. El backend impide cobrar dos veces la misma transacción, así que reintentar es seguro.
+4. Tras un intento fallido pide una configuración nueva: los tokens de aceptación se consumen aunque el cobro falle.
+
+Mientras la pasarela no decide, `pollTransaction` consulta `GET /api/transactions/:id` cada 2 s durante 1 minuto (el backend liquida la transacción al llegar a un estado final). Si sigue pendiente, la pantalla lo explica y permite consultar de nuevo. La consulta se cancela al desmontar la pantalla.
+
+### Qué pasa al refrescar en cada paso
+
+| Paso | Al refrescar |
+|------|--------------|
+| `PRODUCT` | El catálogo se vuelve a pedir |
+| `PAYMENT_FORM` | Vuelve el formulario con el contacto y la dirección; la tarjeta se escribe de nuevo |
+| `SUMMARY` | Vuelve el resumen con la tarjeta tokenizada; pide una configuración nueva y las casillas se aceptan otra vez |
+| `PROCESSING` | Con `transactionId`, retoma la consulta del estado **sin volver a cobrar**. Sin él (el refresh llegó antes de crear la transacción), vuelve al resumen |
+| `RESULT` | Pide la transacción al backend por su id y muestra el resultado |
 
 ## Árbol del patrón arquitectónico
 
@@ -79,7 +101,7 @@ frontend/
 ├── eslint.config.js                    # Reglas de la arquitectura (ver Regla de dependencias)
 ├── jest.config.ts                      # Un proyecto por nivel de prueba, jsdom y umbral de cobertura
 ├── public/
-│   └── images/                         # Productos en WebP y logos SVG de las marcas de tarjeta
+│   └── images/products/                # Fotos de los productos en WebP (dos anchos por foto)
 ├── src/
 │   ├── main.tsx                        # Arranque: createRoot + <App />
 │   ├── app/                            # SOLO composición
@@ -94,30 +116,39 @@ frontend/
 │   │   │   ├── products.selectors.ts
 │   │   │   └── index.ts                # API pública de la feature
 │   │   ├── checkout/
-│   │   │   ├── components/             # PayWithCardButton, PaymentModal (contenedor) y sus secciones: OrderLine, ContactFields, AddressFields, CardFields
+│   │   │   ├── components/             # Contenedores de cada paso: PaymentModal, SummaryBackdrop, ProcessingBackdrop,
+│   │   │   │                           # ResultBackdrop. Presentacionales: PayWithCardButton, OrderLine, ContactFields,
+│   │   │   │                           # AddressFields, CardFields, OrderOverview, AcceptanceChecks, PaymentProgress
 │   │   │   ├── checkout.slice.ts       # Máquina de pasos + datos del checkout
 │   │   │   ├── checkout-step.ts        # Pasos de la máquina y unidades máximas por compra
 │   │   │   ├── checkout-form.validation.ts # Reglas del formulario (las mismas que el backend)
-│   │   │   ├── checkout.thunks.ts      # fetchCheckoutConfig
+│   │   │   ├── checkout.thunks.ts      # fetchCheckoutConfig, placeOrder
+│   │   │   ├── order-request.ts        # Arma la compra y el cobro que se envían al backend
+│   │   │   ├── finish-checkout.ts      # Vuelve a la tienda y recarga el inventario
 │   │   │   ├── use-card-tokenization.ts # Tokeniza la tarjeta sin pasar por Redux (ver Seguridad)
 │   │   │   ├── checkout.selectors.ts
 │   │   │   └── index.ts
-│   │   └── transaction/
-│   │       ├── components/             # TransactionResult.tsx
-│   │       ├── transaction.thunks.ts   # pollTransactionStatus
+│   │   └── transaction/                # Ciclo de vida de la transacción contra la API; no conoce el checkout
+│   │       ├── components/             # TransactionResult: resultado detallado (pantalla 5)
+│   │       ├── transaction.slice.ts    # Última versión conocida de la transacción (no se persiste)
+│   │       ├── transaction.thunks.ts   # createTransaction, payTransaction, fetchTransaction, pollTransaction
+│   │       ├── transaction-status.ts   # isFinalStatus
+│   │       ├── transaction-result.ts   # Título, mensaje y tono de cada estado
 │   │       └── index.ts
 │   │
 │   ├── shared/                         # No importa nada de features/ ni app/
-│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Badge, Notice, Skeleton, TextField, QuantityStepper, Fieldset, Modal, CardBrandIcon
+│   │   ├── ui/                         # theme.css (tokens de Templetus) + Button, Badge, Notice, Skeleton, TextField, QuantityStepper,
+│   │   │                               # Fieldset, Checkbox, Modal, Backdrop, PriceSummary, Spinner, CardBrandIcon
 │   │   ├── lib/
 │   │   │   ├── card/                   # luhn.ts, card-brand.ts, expiry.ts, cvc.ts
-│   │   │   ├── format/                 # currency.ts
-│   │   │   └── pricing/                # summary.ts: total = producto + tarifa base + envío
+│   │   │   ├── format/                 # currency.ts, date-time.ts (hora de Colombia)
+│   │   │   ├── async/                  # wait.ts: espera cancelable con AbortSignal
+│   │   │   └── pricing/                # order-amounts.ts: total = producto + tarifa base + envío
 │   │   ├── api/
 │   │   │   ├── api-error.ts            # ApiError con un code estable: el de la API o NETWORK_ERROR, TIMEOUT, UNEXPECTED_ERROR
 │   │   │   ├── http-client.ts          # Único fetch: /api del mismo origen, JSON, tiempo límite y errores normalizados
 │   │   │   ├── products.api.ts
-│   │   │   ├── transactions.api.ts
+│   │   │   ├── transactions.api.ts     # Crear, cobrar y consultar la transacción
 │   │   │   ├── checkout.api.ts         # Tarifas, contratos y datos públicos de la pasarela
 │   │   │   └── payment-gateway.api.ts  # Tokenización directa en la pasarela con la llave pública
 │   │   └── hooks/                      # useDialogBehavior: foco atrapado, Escape y scroll bloqueado
@@ -161,7 +192,8 @@ app ──► features ──► shared
 
 ## Componentes
 
-- **Contenedor vs. presentacional:** el componente raíz de cada pantalla (`CheckoutModal`, `SummaryBackdrop`) lee el store y despacha. Sus hijos (`CardForm`, `SummaryRow`) reciben props y emiten callbacks: no conocen Redux, y por eso se prueban fácil.
+- **Contenedor vs. presentacional:** el componente raíz de cada pantalla (`PaymentModal`, `SummaryBackdrop`, `ProcessingBackdrop`, `ResultBackdrop`) lee el store y despacha. Sus hijos (`CardFields`, `OrderOverview`, `AcceptanceChecks`, `TransactionResult`…) reciben props y emiten callbacks: no conocen Redux, y por eso se prueban fácil.
+- **Modal y backdrop:** el formulario es un modal; el resumen, el procesamiento y el resultado son un backdrop de Material Design, una capa frontal que sube sobre el catálogo, que queda atenuado detrás. El del procesamiento no tiene `onClose`: un cobro enviado no se abandona.
 - Toda lógica que no sea de presentación (validar tarjeta, calcular el total, formatear moneda) se extrae a `shared/lib` como función pura.
 - **Accesibilidad:** el modal y el backdrop atrapan el foco, se cierran con `Escape`, usan `role="dialog"` y `aria-modal`. Cada input tiene `label`, y los errores se anuncian con `aria-describedby`.
 

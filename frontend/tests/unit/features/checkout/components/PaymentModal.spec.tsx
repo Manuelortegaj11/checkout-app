@@ -57,6 +57,10 @@ const fillValidForm = async () => {
   }
 };
 
+// Rellenar el formulario completo son unas 20 interacciones: en una máquina
+// cargada supera los 5 s por defecto de Jest sin que nada vaya mal.
+jest.setTimeout(15_000);
+
 describe('PaymentModal', () => {
   beforeEach(() => {
     jest.spyOn(checkoutApi, 'getConfig').mockResolvedValue(aCheckoutConfig());

@@ -2,11 +2,17 @@ import { screen, within } from '@testing-library/react';
 import { App } from '@app/App';
 import { checkoutApi } from '@shared/api/checkout.api';
 import { productsApi } from '@shared/api/products.api';
+import { transactionsApi } from '@shared/api/transactions.api';
 import {
   aCheckoutConfig,
   aCheckoutState,
+  aTokenizedCard,
 } from '@testing/fixtures/checkout.fixture';
 import { aProduct, PRODUCT_ID } from '@testing/fixtures/product.fixture';
+import {
+  anApprovedTransaction,
+  TRANSACTION_ID,
+} from '@testing/fixtures/transaction.fixture';
 import { renderWithStore } from '@testing/helpers/render-with-store';
 
 describe('App', () => {
@@ -47,5 +53,68 @@ describe('App', () => {
       await screen.findByRole('dialog', { name: 'Pago con tarjeta' }),
     ).toBeInTheDocument();
     expect(await screen.findByLabelText('Nombre completo')).toBeInTheDocument();
+  });
+
+  it('en el paso de resumen muestra el backdrop con el desglose', async () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue([aProduct()]);
+    jest.spyOn(checkoutApi, 'getConfig').mockResolvedValue(aCheckoutConfig());
+
+    renderWithStore(<App />, {
+      preloadedState: {
+        checkout: aCheckoutState({
+          step: 'SUMMARY',
+          productId: PRODUCT_ID,
+          card: aTokenizedCard(),
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Resumen del pago' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Total a pagar')).toBeInTheDocument();
+  });
+
+  it('en el paso de procesamiento muestra el pago en curso', () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue([aProduct()]);
+    jest
+      .spyOn(transactionsApi, 'get')
+      .mockReturnValue(new Promise(() => undefined));
+
+    renderWithStore(<App />, {
+      preloadedState: {
+        checkout: aCheckoutState({
+          step: 'PROCESSING',
+          productId: PRODUCT_ID,
+          transactionId: TRANSACTION_ID,
+        }),
+      },
+    });
+
+    expect(
+      screen.getByRole('dialog', { name: 'Procesando tu pago' }),
+    ).toBeInTheDocument();
+  });
+
+  it('en el paso de resultado muestra el resultado del pago', async () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue([aProduct()]);
+    jest
+      .spyOn(transactionsApi, 'get')
+      .mockResolvedValue(anApprovedTransaction());
+
+    renderWithStore(<App />, {
+      preloadedState: {
+        checkout: aCheckoutState({
+          step: 'RESULT',
+          productId: PRODUCT_ID,
+          transactionId: TRANSACTION_ID,
+        }),
+      },
+    });
+
+    expect(
+      screen.getByRole('dialog', { name: 'Resultado del pago' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('¡Pago aprobado!')).toBeInTheDocument();
   });
 });

@@ -41,6 +41,8 @@ Las pruebas viven en `tests/`, fuera de `src/`: cada archivo tiene la suya en `t
 - **Nunca** pasar datos de la tarjeta a un thunk: `createAsyncThunk` guarda su argumento en `meta.arg` de cada acción. La tokenización va en un hook (`useCardTokenization`) que despacha solo el resultado.
 - La persistencia usa `store/local-storage.ts`, no `redux-persist/lib/storage` (CommonJS con `exports.default`: Vite lo importa mal). Las pruebas que precargan el checkout usan `aCheckoutState()`, que incluye `_persist`.
 - Al rehidratar en `PROCESSING` con `transactionId`, reanudar la consulta de estado; nunca volver a cobrar.
+- Las features dependen en un solo sentido: `checkout` usa `transaction` y `products`; ninguna de ellas importa `checkout`. Si una pieza necesita una acción del slice y el slice la necesita a ella, va en su propio archivo (como `finish-checkout.ts`) para no crear un ciclo.
+- Una pantalla que no se debe abandonar (un pago en curso) usa `Backdrop` sin `onClose`.
 
 ## Reglas de UI
 
