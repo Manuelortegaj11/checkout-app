@@ -8,6 +8,7 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 |---|---|
 | **Aplicación** | _Se publica en el despliegue_ |
 | **Swagger** | _Se publica en el despliegue_. En local: `http://localhost:3001/api/docs` |
+| **Cobertura** | Backend **97,1 %** · Frontend **100 %** de líneas, solo con pruebas unitarias. [Ver reporte](#cobertura-de-pruebas) |
 
 ## Contenido
 
@@ -16,6 +17,10 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 - [Arquitectura](#arquitectura)
 - [Modelo de datos](#modelo-de-datos)
 - [API](#api)
+- [Cobertura de pruebas](#cobertura-de-pruebas)
+- [Seguridad](#seguridad)
+- [Ejecución en local](#ejecución-en-local)
+- [Despliegue](#despliegue)
 
 ## Flujo de la compra
 
@@ -274,3 +279,102 @@ sequenceDiagram
 ```
 
 Request, response y errores de cada endpoint: [backend/docs/api/contrato-api.md](backend/docs/api/contrato-api.md#5-endpoints).
+
+## Cobertura de pruebas
+
+Medida **solo con las pruebas unitarias** (`pnpm test:cov`). Ambos proyectos fallan si la cobertura baja del 80 %.
+
+**Backend:** 365 pruebas unitarias en 52 suites.
+
+| Capa | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| `domain` | 100 % | 100 % | 100 % | 100 % |
+| `application` | 100 % | 100 % | 100 % | 100 % |
+| `shared` | 100 % | 100 % | 100 % | 100 % |
+| `config` | 100 % | 75 % | 100 % | 100 % |
+| `infrastructure/http` | 92,15 % | 84,69 % | 94,11 % | 92,19 % |
+| `infrastructure/payment-gateway` | 100 % | 98,07 % | 100 % | 100 % |
+| `infrastructure/persistence` | 100 % | 86,66 % | 100 % | 100 % |
+| Resto de `infrastructure` | 100 % | 80 % | 100 % | 100 % |
+| **Total** | **97,21 %** | **90,30 %** | **99,04 %** | **97,11 %** |
+
+**Frontend:** 424 pruebas unitarias en 70 suites.
+
+| Carpeta | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| `features/checkout` | 100 % | 98,95 % | 100 % | 100 % |
+| `features/products` | 100 % | 100 % | 100 % | 100 % |
+| `features/transaction` | 100 % | 100 % | 100 % | 100 % |
+| `shared` (ui, lib, api, hooks) | 100 % | 100 % | 100 % | 100 % |
+| `store` y `app` | 100 % | 100 % | 100 % | 100 % |
+| **Total** | **100 %** | **99,50 %** | **100 %** | **100 %** |
+
+Además de las unitarias:
+
+| Nivel | Backend | Frontend |
+|---|---|---|
+| Integración | 46 pruebas: controladores con supertest y el cableado de cada módulo de NestJS, con la base de datos y la pasarela simuladas | 6 pruebas: el checkout completo con el store y la persistencia reales, también tras un refresh; solo la red se simula |
+| End-to-end | 19 pruebas contra PostgreSQL y el Sandbox reales: cobran de verdad, y al terminar restauran el stock y borran sus datos | — |
+
+Las pruebas viven en `tests/`, fuera de `src/`, con una carpeta por nivel. Las unitarias replican la ruta del archivo que prueban.
+
+## Seguridad
+
+- **La tarjeta nunca llega al backend.** El navegador la tokeniza directamente en la pasarela con la llave pública; al backend y a `localStorage` solo llegan el token, la marca y los últimos 4 dígitos.
+- **El secreto de integridad vive solo en el backend** y firma cada cobro (SHA-256). El backend no usa la llave privada: la pasarela cobra con la llave pública y la firma, así que es un secreto menos que proteger.
+- **Credenciales fuera del repositorio:** solo existe `.env.example`, con los valores de la pasarela vacíos. La API valida sus variables al arrancar y no inicia si falta alguna.
+- **Validación estricta de entrada:** DTOs con class-validator; un campo desconocido responde 400 (por ejemplo, si alguien envía `cardNumber` al backend).
+- **Cabeceras de seguridad con helmet, CORS restringido al origen del frontend y rate limiting:** 100 peticiones por minuto por IP y 10 intentos de pago por minuto.
+- **Pagos idempotentes:** reserva atómica del envío, referencia única por transacción, y el cobro nunca se reintenta automáticamente. Solo las consultas a la pasarela se reintentan ante fallos pasajeros.
+- **Sin `dangerouslySetInnerHTML`** en el frontend, y ESLint impide que el número de tarjeta o el CVC entren al store.
+- PostgreSQL solo escucha en `127.0.0.1`. En producción, Nginx sirve HTTPS y añade las cabeceras de seguridad de la SPA.
+
+## Ejecución en local
+
+**1. Base de datos** (desde la raíz):
+
+```bash
+docker compose up -d   # PostgreSQL 17 en localhost:5433
+```
+
+**2. Backend** (desde `backend/`):
+
+```bash
+cp .env.example .env   # completa las tres variables de la pasarela
+pnpm install           # instala y genera el cliente de Prisma
+pnpm db:deploy         # aplica las migraciones
+pnpm db:seed           # carga los productos
+pnpm start:dev         # http://localhost:3001/api · Swagger en /api/docs
+```
+
+La URL de Sandbox, la llave pública y el secreto de integridad están en el enunciado de la prueba y van en `PAYMENT_GATEWAY_BASE_URL`, `PAYMENT_GATEWAY_PUBLIC_KEY` y `PAYMENT_GATEWAY_INTEGRITY_SECRET`. En el PDF la `l` minúscula y la `I` mayúscula se confunden: si la pasarela responde 404 o "La firma es inválida", revisa esas letras. El resto de variables tiene valores por defecto ([lista completa](backend/docs/api/contrato-api.md#8-variables-de-entorno)).
+
+**3. Frontend** (desde `frontend/`):
+
+```bash
+pnpm install
+pnpm dev               # http://localhost:3000
+```
+
+La SPA no necesita variables de entorno: llama a `/api` en su mismo origen (Vite la reenvía al backend) y recibe la configuración de la pasarela del backend.
+
+**Tarjetas de prueba del Sandbox** (con cualquier fecha futura y cualquier CVC de 3 dígitos):
+
+| Número | Resultado |
+|---|---|
+| `4242 4242 4242 4242` | Aprobada |
+| `4111 1111 1111 1111` | Rechazada |
+
+**Comandos de calidad** (en `backend/` y en `frontend/`):
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm test:cov` | Pruebas unitarias con cobertura |
+| `pnpm test:integration` | Pruebas de integración |
+| `pnpm test:e2e` | Solo backend: pruebas end-to-end contra PostgreSQL y el Sandbox |
+| `pnpm lint` | ESLint, incluidas las reglas de arquitectura |
+| `pnpm typecheck` | Comprobación de tipos |
+
+## Despliegue
+
+_Esta sección se completa con el despliegue._ La arquitectura prevista es un servidor con Nginx, que sirve la SPA y reenvía `/api` a la API de NestJS gestionada con PM2, PostgreSQL en Docker y HTTPS con Certbot.
