@@ -8,7 +8,7 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 |---|---|
 | **Aplicación** | _Se publica en el despliegue_ |
 | **Swagger** | _Se publica en el despliegue_. En local: `http://localhost:3001/api/docs` |
-| **Cobertura** | Backend **97,1 %** · Frontend **100 %** de líneas, solo con pruebas unitarias. [Ver reporte](#cobertura-de-pruebas) |
+| **Cobertura** | Backend **97,2 %** · Frontend **100 %** de líneas, solo con pruebas unitarias. [Ver reporte](#cobertura-de-pruebas) |
 
 ## Contenido
 
@@ -32,7 +32,7 @@ Las cinco pantallas del enunciado son los pasos de una máquina de estados guard
 | `PRODUCT` | 1. Producto | Catálogo con precio, descripción y unidades disponibles. Los agotados se muestran, pero no se pueden comprar |
 | `PAYMENT_FORM` | 2. Tarjeta y entrega | Modal con tarjeta (Luhn, vencimiento, CVC y marca VISA o MasterCard detectada al escribir), contacto y dirección. Al continuar, la tarjeta se tokeniza en la pasarela desde el navegador |
 | `SUMMARY` | 3. Resumen | Backdrop con el valor del producto, la tarifa base, el envío y el total. El cliente acepta los contratos de la pasarela y paga |
-| `PROCESSING` | 4. Procesamiento | Se crea la transacción `PENDING`, se cobra y se consulta el estado hasta que la pasarela decide |
+| `PROCESSING` | 4. Procesamiento | Se crea la transacción `PENDING`, se cobra y se consulta el estado hasta que la pasarela decide. Si la respuesta del cobro se pierde, conserva la compra y avisa que no se debe pagar otra vez |
 | `RESULT` | 5. Resultado | Aprobado o rechazado, con el detalle. Al cerrar vuelve al catálogo con el inventario actualizado |
 
 | Si refresca en… | La app… |
@@ -114,8 +114,10 @@ execute(input: SubmitPaymentInput): ResultAsync<TransactionOutput, AppError> {
     .andThen((view) => this.claimSubmission(view)) // reclama el envío y reserva stock atómicamente
     .andThen((view) => this.charge(view, input).map((payment) => ({ view, payment })))
     .andThen(({ view, payment }) =>
-      recordPaymentResult(this.transactions, view, payment, this.clock.now()),
+      recordPaymentResult(this.transactions, view, payment, this.clock.now())
+        .map((recorded) => ({ view: recorded, payment })), // guarda el id antes de esperar
     )
+    .andThen(({ view, payment }) => this.waitForFinalResult(view, payment))
     .map(toTransactionOutput);
 }
 ```
@@ -225,6 +227,7 @@ stateDiagram-v2
 - **Reserva de inventario antes del cobro:** la reclamación de `paymentSubmittedAt` y el decremento condicional (`WHERE stock >= quantity`) ocurren en una sola transacción PostgreSQL. Dos compradores no pueden pagar la misma última unidad.
 - **Liquidación idempotente:** `APPROVED` conserva la reserva y asigna la entrega. `DECLINED`, `VOIDED` o `ERROR` cancelan la entrega y devuelven las unidades exactamente una vez.
 - **Nunca se cobra dos veces:** `paymentSubmittedAt` se reclama con un `UPDATE … WHERE payment_submitted_at IS NULL`; de dos peticiones simultáneas sobre la misma compra solo una llega a la pasarela.
+- **Resultado ambiguo seguro:** un rechazo HTTP confirmado termina en `ERROR`; una caída de red, timeout o 5xx mantiene la compra `PENDING` y el stock reservado. El identificador externo se guarda antes del polling, por lo que una consulta posterior puede conciliar el resultado sin reenviar el cobro.
 - **Los datos de la tarjeta no se guardan** en ninguna tabla: ni número, ni CVC, ni token.
 - Identificadores **UUID v7** y nombres en inglés: tablas en `snake_case` plural (`products`, `transactions`…) mapeadas desde Prisma. Las migraciones se generan con Prisma y los productos iniciales se cargan con un seed idempotente.
 
@@ -286,7 +289,7 @@ Request, response y errores de cada endpoint: [backend/docs/api/contrato-api.md]
 
 Medida **solo con las pruebas unitarias** (`pnpm test:cov`). Ambos proyectos fallan si la cobertura baja del 80 %.
 
-**Backend:** 365 pruebas unitarias en 52 suites.
+**Backend:** 369 pruebas unitarias en 52 suites.
 
 | Capa | Statements | Branches | Functions | Lines |
 |---|---|---|---|---|
@@ -298,7 +301,7 @@ Medida **solo con las pruebas unitarias** (`pnpm test:cov`). Ambos proyectos fal
 | `infrastructure/payment-gateway` | 100 % | 98,07 % | 100 % | 100 % |
 | `infrastructure/persistence` | 100 % | 86,66 % | 100 % | 100 % |
 | Resto de `infrastructure` | 100 % | 80 % | 100 % | 100 % |
-| **Total** | **97,21 %** | **90,30 %** | **99,04 %** | **97,11 %** |
+| **Total** | **97,28 %** | **90,37 %** | **99,06 %** | **97,20 %** |
 
 **Frontend:** 424 pruebas unitarias en 70 suites.
 
@@ -315,7 +318,7 @@ Además de las unitarias:
 
 | Nivel | Backend | Frontend |
 |---|---|---|
-| Integración | 46 pruebas: controladores con supertest y el cableado de cada módulo de NestJS, con la base de datos y la pasarela simuladas | 6 pruebas: el checkout completo con el store y la persistencia reales, también tras un refresh; solo la red se simula |
+| Integración | 47 pruebas: controladores con supertest y el cableado de cada módulo de NestJS, con la base de datos y la pasarela simuladas | 6 pruebas: el checkout completo con el store y la persistencia reales, también tras un refresh; solo la red se simula |
 | End-to-end | 20 pruebas contra PostgreSQL y el Sandbox reales: incluyen la reserva concurrente; las de pago cobran de verdad, y al terminar restauran el stock y borran sus datos | — |
 
 Las pruebas viven en `tests/`, fuera de `src/`, con una carpeta por nivel. Las unitarias replican la ruta del archivo que prueban.
@@ -327,7 +330,7 @@ Las pruebas viven en `tests/`, fuera de `src/`, con una carpeta por nivel. Las u
 - **Credenciales fuera del repositorio:** solo existe `.env.example`, con los valores de la pasarela vacíos. La API valida sus variables al arrancar y no inicia si falta alguna.
 - **Validación estricta de entrada:** DTOs con class-validator; un campo desconocido responde 400 (por ejemplo, si alguien envía `cardNumber` al backend).
 - **Cabeceras de seguridad con helmet, CORS restringido al origen del frontend y rate limiting:** 100 peticiones por minuto por IP y 10 intentos de pago por minuto.
-- **Pagos e inventario idempotentes:** el envío y el stock se reservan atómicamente, la referencia es única por transacción y el cobro nunca se reintenta automáticamente. Solo las consultas a la pasarela se reintentan ante fallos pasajeros.
+- **Pagos e inventario idempotentes:** el envío y el stock se reservan atómicamente, la referencia es única por transacción y el cobro nunca se reintenta automáticamente. Un resultado ambiguo conserva `PENDING` y la reserva; solo las consultas a la pasarela se reintentan ante fallos pasajeros.
 - **Sin `dangerouslySetInnerHTML`** en el frontend, y ESLint impide que el número de tarjeta o el CVC entren al store.
 - PostgreSQL solo escucha en `127.0.0.1`. En producción, Nginx sirve HTTPS y añade las cabeceras de seguridad de la SPA.
 

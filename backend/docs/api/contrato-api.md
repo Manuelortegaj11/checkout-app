@@ -32,11 +32,17 @@ sequenceDiagram
     SPA->>API: POST /api/transactions/:id/payment
     API->>DB: reclamar envío + reservar stock
     API->>PG: crear transacción (llave pública + firma de integridad)
-    API->>PG: consultar estado (hasta ~10 s)
-    alt estado final
-        API->>DB: liquidar (estado, entrega, conservar/devolver reserva)
+    alt la creación responde
+        API->>DB: guardar inmediatamente id + estado inicial
+        API->>PG: consultar estado (hasta ~10 s)
+        opt estado final
+            API->>DB: liquidar (estado, entrega, conservar/devolver reserva)
+        end
+        API-->>SPA: 200 transacción (PENDING o final)
+    else red / timeout / 5xx
+        Note over API,DB: conservar PENDING + stock reservado
+        API-->>SPA: 502 PAYMENT_GATEWAY_UNAVAILABLE
     end
-    API-->>SPA: 200 transacción (PENDING o final)
 
     loop mientras siga PENDING (cada 2 s, máx. 60 s)
         SPA->>API: GET /api/transactions/:id
@@ -444,6 +450,8 @@ Comportamiento:
 
 - **Orden de comprobación:** formato (400) → la transacción existe (404) → sigue `PENDING` y sin cobro enviado (409) → reclamar el envío y reservar stock atómicamente (409 si otra petición se adelantó o no quedan unidades) → cobro en la pasarela.
 - **Nunca se cobra dos veces ni se sobrevende:** la reclamación (`UPDATE … WHERE payment_submitted_at IS NULL`) y el decremento (`UPDATE … WHERE stock >= quantity`) comparten una transacción PostgreSQL. Entre dos envíos de la misma compra o dos compras de la última unidad, solo uno pasa.
+- **Persistencia antes del polling:** cuando el `POST` responde, el backend guarda inmediatamente el id y el estado inicial del cobro. Solo después espera su estado final; un reinicio o `GET` concurrente puede retomar la consulta sin volver a cobrar.
+- **Error inequívoco frente a resultado ambiguo:** un 4xx del `POST` confirma el rechazo y termina en `ERROR`, cancelando la entrega y devolviendo la reserva. Red, timeout, 5xx o respuesta inválida responden 502, pero conservan la transacción `PENDING` y el stock reservado.
 - **Espera acotada:** tras crear el cobro, el backend consulta su estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` (10 s). En el Sandbox, una tarjeta aprobada tarda ~1 s y una rechazada ~2 s. Si no hay resultado a tiempo, responde `PENDING` y la SPA sigue con `GET`.
 - **Los tokens de aceptación son de un solo uso:** la pasarela los consume en el primer intento de cobro, aunque falle. Por eso cada cobro usa los de un `GET /api/checkout/config` reciente.
 - **Solo tokens:** el cuerpo no admite otros campos. Si se envía `cardNumber` o similar, responde 400: el número de la tarjeta nunca llega al backend.
@@ -457,11 +465,11 @@ Comportamiento:
 | `PAYMENT_ALREADY_SUBMITTED` | 409 | El pago ya se envió; consultar con `GET` |
 | `OUT_OF_STOCK` | 409 | La reserva atómica no encontró suficientes unidades |
 | `PAYMENT_GATEWAY_REJECTED` | 502 | La pasarela rechazó la petición (token inválido o vencido…). La transacción queda en `ERROR` |
-| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | La pasarela no responde. La transacción queda en `ERROR` |
+| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | No se pudo confirmar el resultado del `POST`. La transacción conserva `PENDING` y la reserva; consultar con `GET` y no volver a cobrar |
 
 ### `GET /api/transactions/:id`
 
-Devuelve la transacción. Si está `PENDING` y el pago ya se envió, primero consulta el estado en la pasarela y, si ya es final, liquida la transacción. La operación es idempotente: repetirla no cambia el resultado.
+Devuelve la transacción. Si está `PENDING` y tiene el id externo del cobro, primero consulta el estado en la pasarela y, si ya es final, liquida la transacción. La operación es idempotente: repetirla no cambia el resultado. Si el `POST` no devolvió un id, conserva `PENDING` y la reserva sin reenviar el cobro.
 
 **200:** `TransactionResponse`.
 
@@ -548,14 +556,14 @@ El frontend decide qué mostrar según el `code`, nunca según el `message`.
 - **Estados de la pasarela:** `PENDING`, `APPROVED`, `DECLINED`, `VOIDED`, `ERROR`. Se guardan tal cual en `Transaction.status`.
 - **Seguimiento por consulta (polling), no por webhooks.** Los webhooks se configuran en el panel del comercio, y la cuenta Sandbox es compartida entre candidatos: cambiar su URL de eventos afectaría a otros. El backend consulta hasta ~10 s tras enviar el pago, y la SPA sigue consultando `GET /api/transactions/:id` cada 2 s hasta 60 s.
 - **Verificado en el Sandbox:** el cobro se crea con la llave pública (con la privada la pasarela responde "Llave no válida") y la firma de integridad. La consulta del estado no requiere credenciales. **El backend no necesita la llave privada**, así que no la guarda: es un secreto menos que proteger.
-- **Cobro (implementado):** `POST {PAYMENT_GATEWAY_BASE_URL}/transactions` con `acceptance_token`, `accept_personal_auth`, `amount_in_cents`, `currency`, `signature`, `customer_email`, `reference` y `payment_method: { type: "CARD", token, installments }`. Respuestas 4xx (firma inválida, token ya usado, referencia repetida) → `PAYMENT_GATEWAY_REJECTED`; red, timeout o 5xx → `PAYMENT_GATEWAY_UNAVAILABLE`.
+- **Cobro (implementado):** `POST {PAYMENT_GATEWAY_BASE_URL}/transactions` con `acceptance_token`, `accept_personal_auth`, `amount_in_cents`, `currency`, `signature`, `customer_email`, `reference` y `payment_method: { type: "CARD", token, installments }`. Respuestas 4xx (firma inválida, token ya usado, referencia repetida) → `PAYMENT_GATEWAY_REJECTED`, `ERROR` y devolución de stock; red, timeout, 5xx o cuerpo inválido → `PAYMENT_GATEWAY_UNAVAILABLE`, pero la compra conserva `PENDING` y la reserva.
 - **Estado (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/transactions/{id}` → `data.status` y `data.status_message`. Un estado desconocido o una respuesta sin `id` se tratan como `PAYMENT_GATEWAY_UNAVAILABLE`.
 - **Referencia única:** la pasarela rechaza una referencia repetida ("La referencia ya ha sido usada"). La nuestra deriva del id de la transacción, así que nunca se repite.
 - **Contratos (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/merchants/{llavePública}`. De la respuesta se usan `data.presigned_acceptance` (política de uso) y `data.presigned_personal_data_auth` (datos personales), cada uno con `acceptance_token` y `permalink`. La respuesta se valida antes de usarla: si falta un campo, se responde `PAYMENT_GATEWAY_UNAVAILABLE`.
 - **Timeout:** cada petición a la pasarela se corta a los `PAYMENT_GATEWAY_TIMEOUT_MS` (10 s por defecto).
 - **Reintentos solo en las consultas:** los `GET` (contratos y estado del cobro) son idempotentes, así que se reintentan ante un fallo pasajero: error de red, 5xx o 429. Hasta `PAYMENT_GATEWAY_GET_RETRIES` veces (2 por defecto), esperando `PAYMENT_GATEWAY_RETRY_BACKOFF_MS` (250 ms) y el doble en cada reintento. Todos los intentos comparten el mismo timeout: reintentar nunca alarga la espera total. Un 4xx no se reintenta porque la respuesta no cambiará. **El `POST` del cobro nunca se reintenta:** no es idempotente y un segundo envío podría cobrar dos veces.
 - **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404. El secreto de integridad tiene el caso inverso: dos `I` mayúsculas que en la imagen parecen `l`; con las `l` la pasarela responde "La firma es inválida".
-- **Riesgo conocido:** si la pasarela no responde **al crear** el cobro, la compra queda en `ERROR`; si en realidad sí lo creó, no se concilia automáticamente (se haría con webhooks, que no se usan porque la cuenta del Sandbox es compartida).
+- **Respuesta perdida al crear:** si el `POST` no devuelve su id, no existe una consulta pública por referencia. La compra queda protegida en `PENDING`, conserva el stock y bloquea un segundo cobro, pero su resolución requiere conciliación manual por referencia o un webhook. Los webhooks no se configuran porque la cuenta Sandbox es compartida entre candidatos.
 
 ### Tarjetas de prueba (Sandbox)
 

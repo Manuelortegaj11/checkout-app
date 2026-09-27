@@ -72,6 +72,7 @@ README.md   Único README de la entrega
 - **Ids y hora por ports:** los ids (UUID v7) salen de `IdGeneratorPort` y la hora de `ClockPort`. El lint prohíbe `new Date()`, `Date.now()`, `Math.random()` y `randomUUID()` en `shared`, `domain` y `application`.
 - **Parse, don't validate:** los value objects (`Quantity`, `Email`) validan al crearse; un método que recibe un value object no vuelve a validar ni devuelve `Result` si no puede fallar.
 - La transacción se crea en `PENDING`. Justo antes de llamar a la pasarela, `claimPaymentSubmission` reclama el envío y reserva el inventario en una sola transacción PostgreSQL. `APPROVED` conserva la reserva; `DECLINED`, `VOIDED` o `ERROR` la devuelven exactamente una vez.
+- El id de un cobro creado como `PENDING` se persiste antes de esperar su resultado final. Solo un rechazo HTTP confirmado convierte la compra en `ERROR`; red, timeout, 5xx o respuesta inválida dejan la compra `PENDING` y el stock reservado, porque la pasarela pudo haber procesado el cobro. Nunca reenviar automáticamente el `POST`.
 - La base de datos se puebla con un seed de productos ficticios; no hay endpoints para crear productos.
 - Documentar la API con Swagger (`@nestjs/swagger`). Seguridad: helmet, CORS restringido, rate limiting.
 - **NestJS 11, no 12:** NestJS 12 solo se distribuye como ESM y usa Vitest; el enunciado exige Jest, que con ESM sigue siendo experimental. No actualizar a 12.
