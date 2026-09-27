@@ -661,25 +661,30 @@ El controlador inyecta el caso de uso por su clase (`constructor(private readonl
 
 ## El riel del pago
 
-El caso de uso más delicado es el que cobra (`SubmitPaymentUseCase`). Tiene que garantizar tres cosas: **nunca cobrar dos veces**, **no cobrar sin inventario** y **devolver una reserva una sola vez** aunque varias peticiones liquiden a la vez.
+El caso de uso más delicado es el que cobra (`SubmitPaymentUseCase`). Tiene que garantizar cuatro cosas: **nunca cobrar dos veces**, **no cobrar sin inventario**, **persistir el id externo antes del polling** y **no confundir una respuesta perdida con un rechazo**.
 
 ```mermaid
 flowchart TD
     A["buscar transacción + producto + cliente"] --> B["dominio: startPayment<br/>(PENDING y sin envío previo)"]
     B --> C["repositorio: claimPaymentSubmission<br/>reclamar envío + reservar stock"]
-    C --> D["pasarela: charge<br/>(firma + espera ~10 s el estado final)"]
-    D --> E["recordPaymentResult:<br/>liquidar + conservar o devolver reserva"]
-    E --> OK([ok: APPROVED / DECLINED / PENDING])
+    C --> D["pasarela: charge<br/>crear el cobro"]
+    D --> E["recordPaymentResult:<br/>guardar id y estado inicial"]
+    E --> F["waitForFinalStatus:<br/>consultar hasta ~10 s"]
+    F --> G["si ya es final:<br/>recordPaymentResult"]
+    G --> OK([ok: APPROVED / DECLINED / PENDING])
     A -. "TRANSACTION_NOT_FOUND" .-> KO([err])
     B -. "TRANSACTION_ALREADY_RESOLVED<br/>PAYMENT_ALREADY_SUBMITTED" .-> KO
     C -. "OUT_OF_STOCK<br/>PAYMENT_ALREADY_SUBMITTED" .-> KO
-    D -. "PAYMENT_GATEWAY_REJECTED / UNAVAILABLE" .-> COMP["orElse: failPayment → ERROR<br/>cancelar entrega + devolver stock"] -.-> KO
+    D -. "PAYMENT_GATEWAY_REJECTED" .-> COMP["failPayment → ERROR<br/>cancelar entrega + devolver stock"] -.-> KO
+    D -. "PAYMENT_GATEWAY_UNAVAILABLE" .-> UNKNOWN["conservar PENDING<br/>y stock reservado"] -.-> KO
 ```
 
 - **Un pago rechazado no es un error del riel.** `DECLINED` es un resultado de negocio válido y viaja por el riel de éxito (HTTP 200, con el motivo en `statusMessage`).
 - **Doble envío imposible.** Primero lo comprueba el dominio (`startPayment`). Después, un `UPDATE` condicional en PostgreSQL (`claimPaymentSubmission`) resuelve la carrera entre dos peticiones simultáneas: solo una encuentra `payment_submitted_at` vacío.
 - **Sobreventa imposible.** Esa misma transacción de base de datos decrementa el producto con `WHERE stock >= quantity`. Si dos compras compiten por la última unidad, solo una obtiene la reserva y llega a la pasarela.
-- **Compensación.** Si la pasarela rechaza o no recibe el cobro, `orElse` deja la compra en `ERROR`, cancela la entrega, devuelve la reserva y conserva el error original. Si ni siquiera eso se puede guardar, prevalece el error de la pasarela.
+- **Rechazo confirmado.** Un 4xx demuestra que la pasarela recibió y rechazó la solicitud: `failPayment` deja la compra en `ERROR`, cancela la entrega y devuelve la reserva.
+- **Resultado ambiguo.** Red, timeout, 5xx o respuesta inválida no demuestran que el cobro falló. El caso de uso devuelve el error, pero conserva `PENDING`, `paymentSubmittedAt` y el stock reservado; reenviar el `POST` queda bloqueado.
+- **Id externo temprano.** Cuando la creación responde, `recordPaymentResult` persiste inmediatamente el id de la pasarela. Solo después se espera el estado final, así un reinicio o una consulta concurrente puede continuar la conciliación con `GET`.
 - **Espera acotada.** El adapter consulta el estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS`. Si no llega a un estado final, se responde `PENDING` y la consulta sigue en `GET /api/transactions/:id`.
 
 ### Liquidación compartida
@@ -696,7 +701,7 @@ La liquidación es **idempotente**: el `UPDATE` está condicionado a `status = '
 
 ### Consulta y sincronización
 
-`GetTransactionUseCase` pregunta a la pasarela solo si hay un cobro pendiente (`pendingPaymentId()`). Si la pasarela no responde, **no es un error**: devuelve la transacción tal como está y la SPA vuelve a consultar.
+`GetTransactionUseCase` pregunta a la pasarela solo si hay un cobro pendiente con id externo (`pendingPaymentId()`). Si la pasarela no responde, **no es un error**: devuelve la transacción tal como está y la SPA vuelve a consultar. Si la respuesta del `POST` se perdió antes de recibir ese id, mantiene `PENDING` y requiere conciliación manual por referencia o un webhook; nunca arriesga un segundo cobro.
 
 ## Pruebas por nivel
 

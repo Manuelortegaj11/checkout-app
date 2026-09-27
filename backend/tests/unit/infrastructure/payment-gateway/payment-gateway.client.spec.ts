@@ -5,7 +5,10 @@ import {
   aMerchantResponse,
   jsonResponse,
 } from '@testing/fixtures/merchant-response.fixture';
-import { GATEWAY_TRANSACTION_ID } from '@testing/fixtures/transaction.fixture';
+import {
+  aPaymentResult,
+  GATEWAY_TRANSACTION_ID,
+} from '@testing/fixtures/transaction.fixture';
 import { mockConfigService } from '@testing/mocks/config-service.mock';
 import { integritySignature } from '@infrastructure/payment-gateway/integrity-signature';
 import { PaymentGatewayHttpClient } from '@infrastructure/payment-gateway/payment-gateway.client';
@@ -193,8 +196,6 @@ describe('PaymentGatewayHttpClient', () => {
     const client = () => clientWith('https://gateway.test/v1');
     const created = (status: string) =>
       jsonResponse(aGatewayTransactionResponse({ status }), 201);
-    const current = (status: string) =>
-      jsonResponse(aGatewayTransactionResponse({ status }));
 
     it('crea el cobro con la llave pública y la firma de integridad', async () => {
       fetchMock.mockResolvedValueOnce(created('APPROVED'));
@@ -223,68 +224,26 @@ describe('PaymentGatewayHttpClient', () => {
       });
     });
 
-    it('espera el estado final consultando el cobro', async () => {
-      fetchMock
-        .mockResolvedValueOnce(created('PENDING'))
-        .mockResolvedValueOnce(current('PENDING'))
-        .mockResolvedValueOnce(current('APPROVED'));
+    it('devuelve enseguida el cobro PENDING para persistir su id', async () => {
+      fetchMock.mockResolvedValueOnce(created('PENDING'));
 
       const result = await client().charge(request);
 
       expect(result._unsafeUnwrap()).toEqual({
         gatewayTransactionId: GATEWAY_TRANSACTION_ID,
-        status: 'APPROVED',
+        status: 'PENDING',
         statusMessage: null,
       });
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('no consulta si la pasarela ya respondió un estado final', async () => {
+    it('devuelve enseguida un resultado final', async () => {
       fetchMock.mockResolvedValueOnce(created('DECLINED'));
 
       const result = await client().charge(request);
 
       expect(result._unsafeUnwrap().status).toBe('DECLINED');
       expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('devuelve PENDING si el estado final no llega dentro de la espera', async () => {
-      fetchMock
-        .mockResolvedValueOnce(created('PENDING'))
-        .mockResolvedValue(current('PENDING'));
-
-      const result = await client().charge(request);
-
-      expect(result._unsafeUnwrap()).toMatchObject({
-        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
-        status: 'PENDING',
-      });
-      expect(fetchMock).toHaveBeenCalledTimes(1 + 3);
-    });
-
-    it('una consulta que falla un momento se reintenta y llega al estado final', async () => {
-      fetchMock
-        .mockResolvedValueOnce(created('PENDING'))
-        .mockResolvedValueOnce(jsonResponse({}, 503))
-        .mockResolvedValueOnce(current('APPROVED'));
-
-      const result = await client().charge(request);
-
-      expect(result._unsafeUnwrap().status).toBe('APPROVED');
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-    });
-
-    it('si falla una consulta conserva el cobro ya creado con su último estado', async () => {
-      fetchMock
-        .mockResolvedValueOnce(created('PENDING'))
-        .mockRejectedValue(new TypeError('fetch failed'));
-
-      const result = await client().charge(request);
-
-      expect(result._unsafeUnwrap()).toMatchObject({
-        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
-        status: 'PENDING',
-      });
     });
 
     it('falla con PAYMENT_GATEWAY_REJECTED si la pasarela rechaza el cobro', async () => {
@@ -325,6 +284,71 @@ describe('PaymentGatewayHttpClient', () => {
         'PAYMENT_GATEWAY_UNAVAILABLE',
       );
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('waitForFinalStatus', () => {
+    const client = () => clientWith('https://gateway.test/v1');
+    const current = (status: string) =>
+      jsonResponse(aGatewayTransactionResponse({ status }));
+
+    it('consulta un cobro PENDING hasta recibir su resultado final', async () => {
+      fetchMock
+        .mockResolvedValueOnce(current('PENDING'))
+        .mockResolvedValueOnce(current('APPROVED'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('no consulta un cobro que ya llegó a estado final', async () => {
+      const payment = aPaymentResult({ status: 'DECLINED' });
+
+      const result = await client().waitForFinalStatus(payment);
+
+      expect(result._unsafeUnwrap()).toBe(payment);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('conserva PENDING cuando se agota la espera', async () => {
+      fetchMock.mockResolvedValue(current('PENDING'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('PENDING');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('reintenta una consulta pasajera y llega al estado final', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, 503))
+        .mockResolvedValueOnce(current('APPROVED'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('si fallan las consultas conserva el último estado conocido', async () => {
+      fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap()).toMatchObject({
+        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+        status: 'PENDING',
+      });
     });
   });
 });

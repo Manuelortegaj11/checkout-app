@@ -165,6 +165,32 @@ describe('TransactionModule', () => {
       });
     });
 
+    it('si el resultado del POST es ambiguo responde 502 sin liquidar ni liberar la reserva', async () => {
+      prisma.transaction.findUnique.mockResolvedValue(aTransactionViewRow());
+      fetchMock.mockResolvedValue(jsonResponse({ error: 'timeout' }, 503));
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/transactions/${TRANSACTION_ID}/payment`)
+        .send({
+          cardToken: 'tok_stagtest_5113_abc',
+          installments: 1,
+          acceptanceToken: 'end-user-policy-token',
+          personalDataAuthToken: 'personal-data-auth-token',
+        })
+        .expect(502);
+
+      expect(response.body).toEqual({
+        code: 'PAYMENT_GATEWAY_UNAVAILABLE',
+        message: 'Payment gateway is unavailable',
+      });
+      expect(tx.product.updateMany).toHaveBeenCalledWith({
+        where: { id: PRODUCT_ID, stock: { gte: 1 } },
+        data: { stock: { decrement: 1 } },
+      });
+      expect(tx.delivery.update).not.toHaveBeenCalled();
+      expect(tx.product.update).not.toHaveBeenCalled();
+    });
+
     it('GET /api/transactions/:id sincroniza un cobro pendiente con la pasarela', async () => {
       prisma.transaction.findUnique.mockResolvedValue(
         aTransactionViewRow(anAwaitingTransaction()),
