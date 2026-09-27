@@ -14,6 +14,8 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 - [Flujo de la compra](#flujo-de-la-compra)
 - [Stack](#stack)
 - [Arquitectura](#arquitectura)
+- [Modelo de datos](#modelo-de-datos)
+- [API](#api)
 
 ## Flujo de la compra
 
@@ -132,3 +134,143 @@ frontend/src/
 - **Identidad visual Templetus:** paleta azul, tipografía Inter, esquinas rectas y tema oscuro automático, todo desde tokens de Tailwind.
 
 Referencia completa: [frontend/docs/arquitectura/spa-redux-flux.md](frontend/docs/arquitectura/spa-redux-flux.md).
+
+## Modelo de datos
+
+```mermaid
+erDiagram
+    PRODUCT ||--o{ TRANSACTION : "se compra en"
+    CUSTOMER ||--o{ TRANSACTION : "realiza"
+    TRANSACTION ||--|| DELIVERY : "genera"
+
+    PRODUCT {
+        uuid id PK
+        string name
+        string description
+        int priceInCents
+        int stock
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
+    }
+    CUSTOMER {
+        uuid id PK
+        string fullName
+        string email UK
+        string phone
+        datetime createdAt
+        datetime updatedAt
+    }
+    TRANSACTION {
+        uuid id PK
+        string reference UK
+        enum status
+        uuid productId FK
+        uuid customerId FK
+        int quantity
+        int unitPriceInCents
+        int productAmountInCents
+        int baseFeeInCents
+        int deliveryFeeInCents
+        int totalInCents
+        string currency
+        string gatewayTransactionId UK "nullable"
+        datetime paymentSubmittedAt "nullable"
+        string statusMessage "nullable"
+        datetime finalizedAt "nullable"
+        datetime createdAt
+        datetime updatedAt
+    }
+    DELIVERY {
+        uuid id PK
+        uuid transactionId FK,UK
+        enum status
+        string recipientName
+        string phone
+        string addressLine1
+        string addressLine2 "nullable"
+        string city
+        string region
+        string postalCode "nullable"
+        datetime createdAt
+        datetime updatedAt
+    }
+```
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "Transaction" as T {
+        [*] --> PENDING
+        PENDING --> APPROVED
+        PENDING --> DECLINED
+        PENDING --> VOIDED
+        PENDING --> ERROR
+    }
+    state "Delivery" as D {
+        [*] --> PENDING_PAYMENT
+        PENDING_PAYMENT --> ASSIGNED: pago APPROVED
+        PENDING_PAYMENT --> CANCELLED: DECLINED / VOIDED / ERROR
+    }
+```
+
+- **Dinero en centavos y enteros** (`*InCents`), nunca decimales, igual que la pasarela.
+- **La transacción copia precio y tarifas** del momento de la compra: si el producto cambia de precio, el histórico no se altera. Las tarifas las calcula siempre el backend.
+- **Liquidación en una sola transacción de base de datos:** al aprobarse, la transacción pasa a `APPROVED`, el stock baja (`WHERE stock >= quantity`) y la entrega queda `ASSIGNED`. Si no se aprueba, la entrega se cancela y el stock no cambia.
+- **Nunca se cobra dos veces:** `paymentSubmittedAt` se reserva con un `UPDATE … WHERE payment_submitted_at IS NULL`; de dos peticiones simultáneas solo una llega a la pasarela.
+- **Los datos de la tarjeta no se guardan** en ninguna tabla: ni número, ni CVC, ni token.
+- Identificadores **UUID v7** y nombres en inglés: tablas en `snake_case` plural (`products`, `transactions`…) mapeadas desde Prisma. Las migraciones se generan con Prisma y los productos iniciales se cargan con un seed idempotente.
+
+| Producto (seed) | Precio (COP) | Stock |
+|---|---|---|
+| Audífonos inalámbricos | 189.900 | 12 |
+| Reloj inteligente | 349.900 | 8 |
+| Teclado mecánico | 259.900 | 5 |
+| Mouse ergonómico | 89.900 | 20 |
+| Parlante Bluetooth portátil | 149.900 | 1 (para ver cómo se agota tras una compra) |
+| Cámara web 4K | 219.900 | 0 (para ver un producto agotado) |
+
+Tablas, reglas de cada campo y decisiones: [backend/docs/api/contrato-api.md](backend/docs/api/contrato-api.md#2-modelo-de-datos).
+
+## API
+
+Documentación interactiva con **Swagger** en `/api/docs`; la especificación OpenAPI está en `/api/docs-json` y se puede importar en Postman.
+
+| Método | Ruta | Módulo | Para qué |
+|---|---|---|---|
+| `GET` | `/api/products` | Inventario | Productos con su stock |
+| `GET` | `/api/products/:id` | Inventario | Detalle de un producto |
+| `GET` | `/api/checkout/config` | Checkout | Tarifas, URL y llave pública de la pasarela y contratos a aceptar |
+| `POST` | `/api/transactions` | Transacciones, clientes y entregas | Crea la transacción `PENDING` con su cliente y su entrega |
+| `POST` | `/api/transactions/:id/payment` | Transacciones | Cobra en la pasarela con la tarjeta tokenizada |
+| `GET` | `/api/transactions/:id` | Transacciones | Consulta el estado y liquida la transacción si ya es final |
+| `GET` | `/api/health` | — | Comprueba que la API está en marcha |
+
+Clientes y entregas son módulos completos del backend, pero no tienen endpoints propios: se crean y se leen a través de las transacciones. Exponerlos sin autenticación filtraría datos personales.
+
+Los errores tienen una sola forma, con un código estable que el frontend traduce a un mensaje:
+
+```json
+{ "code": "OUT_OF_STOCK", "message": "Not enough units available" }
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA
+    participant API
+    participant PG as Pasarela de pagos
+
+    SPA->>PG: tokenizar la tarjeta (llave pública)
+    SPA->>API: POST /api/transactions
+    API-->>SPA: 201 transacción PENDING
+    SPA->>API: POST /api/transactions/:id/payment
+    API->>PG: cobro (llave pública + firma de integridad)
+    API->>PG: consulta del estado (hasta ~10 s)
+    API-->>SPA: 200 estado final o PENDING
+    loop mientras siga PENDING (cada 2 s, máx. 60 s)
+        SPA->>API: GET /api/transactions/:id
+    end
+```
+
+Request, response y errores de cada endpoint: [backend/docs/api/contrato-api.md](backend/docs/api/contrato-api.md#5-endpoints).
