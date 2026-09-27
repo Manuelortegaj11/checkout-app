@@ -1,6 +1,10 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import {
+  TRANSACTION_REPOSITORY,
+  type TransactionRepositoryPort,
+} from '@application/ports/transaction.repository.port';
 import { AppModule } from '@infrastructure/modules/app.module';
 import { configureApp } from '@infrastructure/http/configure-app';
 import { PrismaService } from '@infrastructure/persistence/prisma.service';
@@ -13,6 +17,7 @@ import { PrismaService } from '@infrastructure/persistence/prisma.service';
  */
 const SEED_HEADPHONES_ID = '01920000-0000-7000-8000-000000000001';
 const SEED_OUT_OF_STOCK_ID = '01920000-0000-7000-8000-000000000006';
+const CONCURRENT_PRODUCT_ID = '01920000-0000-7000-8000-00000000ca11';
 const UNKNOWN_ID = '01920000-0000-7000-8000-0000000000ff';
 const UUID_V7 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -20,6 +25,7 @@ const UUID_V7 =
 describe('Transacciones (e2e)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
+  let transactions: TransactionRepositoryPort;
   const email = `e2e-${Date.now()}@example.com`;
   const createdIds: string[] = [];
 
@@ -53,11 +59,13 @@ describe('Transacciones (e2e)', () => {
     configureApp(app, { corsOrigin: 'http://localhost:3000' });
     await app.init();
     prisma = app.get(PrismaService);
+    transactions = app.get<TransactionRepositoryPort>(TRANSACTION_REPOSITORY);
   });
 
   afterAll(async () => {
     // La entrega se borra en cascada con su transacción.
     await prisma.transaction.deleteMany({ where: { id: { in: createdIds } } });
+    await prisma.product.deleteMany({ where: { id: CONCURRENT_PRODUCT_ID } });
     await prisma.customer.deleteMany({ where: { email } });
     await app.close();
   });
@@ -160,5 +168,80 @@ describe('Transacciones (e2e)', () => {
       ],
     });
     expect(await prisma.transaction.count()).toBe(before);
+  });
+
+  it('reserva la última unidad para una sola compra concurrente y la devuelve una sola vez', async () => {
+    await prisma.product.create({
+      data: {
+        id: CONCURRENT_PRODUCT_ID,
+        name: 'Producto de concurrencia',
+        description: 'Producto exclusivo de la prueba de reserva atómica',
+        priceInCents: 100_000,
+        stock: 1,
+        imageUrl: '/products/concurrent.webp',
+      },
+    });
+
+    const responses = await Promise.all([
+      post(aPurchase({ productId: CONCURRENT_PRODUCT_ID })).expect(201),
+      post(aPurchase({ productId: CONCURRENT_PRODUCT_ID })).expect(201),
+    ]);
+    const ids = responses.map(({ body }) => (body as { id: string }).id);
+    createdIds.push(...ids);
+
+    const views = await Promise.all(
+      ids.map(async (id) =>
+        (await transactions.findViewById(id))._unsafeUnwrap(),
+      ),
+    );
+    const started = views.map((view) => ({
+      view,
+      transaction: view!.transaction
+        .startPayment(new Date('2026-09-27T15:00:00.000Z'))
+        ._unsafeUnwrap(),
+    }));
+    const claims = await Promise.all(
+      started.map(({ transaction }) =>
+        transactions.claimPaymentSubmission(transaction),
+      ),
+    );
+    const outcomes = claims.map((claim) => claim._unsafeUnwrap());
+
+    expect(outcomes).toEqual(
+      expect.arrayContaining([
+        { claimed: true },
+        { claimed: false, reason: 'OUT_OF_STOCK', available: 0 },
+      ]),
+    );
+    expect(
+      await prisma.product.findUniqueOrThrow({
+        where: { id: CONCURRENT_PRODUCT_ID },
+        select: { stock: true },
+      }),
+    ).toEqual({ stock: 0 });
+
+    const winner = started[outcomes.findIndex(({ claimed }) => claimed)];
+    const declined = winner.transaction
+      .applyPaymentResult(
+        {
+          gatewayTransactionId: 'gateway-concurrency-test',
+          status: 'DECLINED',
+          statusMessage: 'Declined in concurrency test',
+        },
+        new Date('2026-09-27T15:00:01.000Z'),
+      )
+      ._unsafeUnwrap();
+
+    await Promise.all([
+      transactions.savePaymentResult(declined),
+      transactions.savePaymentResult(declined),
+    ]);
+
+    expect(
+      await prisma.product.findUniqueOrThrow({
+        where: { id: CONCURRENT_PRODUCT_ID },
+        select: { stock: true },
+      }),
+    ).toEqual({ stock: 1 });
   });
 });

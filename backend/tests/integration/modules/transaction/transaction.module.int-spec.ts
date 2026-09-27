@@ -31,9 +31,16 @@ const EXISTING_CUSTOMER_ID = '01920000-0000-7000-8000-00000000cafe';
 describe('TransactionModule', () => {
   let app: NestExpressApplication;
   const tx = {
-    transaction: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    transaction: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      update: jest.fn(),
+    },
     delivery: { update: jest.fn() },
-    product: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    product: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      update: jest.fn(),
+      findUnique: jest.fn(),
+    },
   };
   const prisma = {
     product: { findUnique: jest.fn() },
@@ -177,6 +184,10 @@ describe('TransactionModule', () => {
       expect(tx.delivery.update).toHaveBeenCalledWith({
         where: { transactionId: TRANSACTION_ID },
         data: { status: 'CANCELLED' },
+      });
+      expect(tx.product.update).toHaveBeenCalledWith({
+        where: { id: PRODUCT_ID },
+        data: { stock: { increment: 1 } },
       });
     });
   });

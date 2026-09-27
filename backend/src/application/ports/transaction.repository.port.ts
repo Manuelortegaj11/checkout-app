@@ -5,6 +5,18 @@ import type { ResultAsync } from '@shared/result';
 
 export const TRANSACTION_REPOSITORY = Symbol('TRANSACTION_REPOSITORY');
 
+export type PaymentSubmissionClaim =
+  | { readonly claimed: true }
+  | {
+      readonly claimed: false;
+      readonly reason: 'ALREADY_SUBMITTED';
+    }
+  | {
+      readonly claimed: false;
+      readonly reason: 'OUT_OF_STOCK';
+      readonly available: number;
+    };
+
 /** Persistencia del agregado Transaction (con su entrega). */
 export interface TransactionRepositoryPort {
   /** Guarda una transacción nueva y su entrega de forma atómica. */
@@ -14,18 +26,19 @@ export interface TransactionRepositoryPort {
   findViewById(id: string): ResultAsync<TransactionView | null, AppError>;
 
   /**
-   * Reserva el envío del cobro de forma atómica: solo tiene éxito si la
-   * transacción sigue PENDING y nadie lo envió antes. Devuelve `false` si otra
-   * petición se adelantó, para no cobrar dos veces.
+   * Reclama el envío y reserva el stock en una sola transacción de base de
+   * datos. Solo una petición puede reclamar la compra y solo lo consigue si
+   * todavía quedan las unidades solicitadas.
    */
   claimPaymentSubmission(
     transaction: Transaction,
-  ): ResultAsync<boolean, AppError>;
+  ): ResultAsync<PaymentSubmissionClaim, AppError>;
 
   /**
    * Guarda la respuesta de la pasarela. Si el estado es final, liquida en una
-   * sola transacción de base de datos: estado, entrega y, si se aprobó, stock.
-   * Idempotente: si otra petición ya la liquidó, no hace nada.
+   * sola transacción de base de datos: estado, entrega y devolución del stock
+   * reservado cuando no se aprobó. Idempotente: si otra petición ya la liquidó,
+   * no hace nada.
    */
   savePaymentResult(transaction: Transaction): ResultAsync<void, AppError>;
 }

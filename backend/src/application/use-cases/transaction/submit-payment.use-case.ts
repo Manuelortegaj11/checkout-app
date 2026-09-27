@@ -6,11 +6,11 @@ import type { PaymentGatewayPort } from '@application/ports/payment-gateway.port
 import type { TransactionRepositoryPort } from '@application/ports/transaction.repository.port';
 import type { UseCase } from '@application/ports/use-case.port';
 import type { PaymentResult } from '@domain/entities/transaction.entity';
+import { outOfStock } from '@domain/errors/product.errors';
 import {
   paymentAlreadySubmitted,
   transactionNotFound,
 } from '@domain/errors/transaction.errors';
-import { checkStockAvailable } from '@domain/rules/stock.rules';
 import type { AppError } from '@shared/errors/app-error';
 import {
   err,
@@ -56,31 +56,32 @@ export class SubmitPaymentUseCase implements UseCase<
       .map(toTransactionOutput);
   }
 
-  /** Se cobra una sola vez, mientras siga PENDING y quede stock. */
+  /** Marca el inicio del cobro mientras la transacción siga PENDING. */
   private startPayment(
     view: TransactionView,
   ): Result<TransactionView, AppError> {
-    const { quantity } = view.transaction.toPlainObject();
-
     return view.transaction
       .startPayment(this.clock.now())
-      .andThen((transaction) =>
-        checkStockAvailable(view.product.toPlainObject(), quantity).map(() => ({
-          ...view,
-          transaction,
-        })),
-      );
+      .map((transaction) => ({ ...view, transaction }));
   }
 
-  /** Reserva atómica del envío: si otra petición se adelantó, no se cobra dos veces. */
+  /** Reclama el envío y reserva stock antes de llegar a la pasarela. */
   private claimSubmission(
     view: TransactionView,
   ): ResultAsync<TransactionView, AppError> {
     return this.transactions
       .claimPaymentSubmission(view.transaction)
-      .andThen((claimed) =>
-        claimed ? ok(view) : err(paymentAlreadySubmitted(view.transaction.id)),
-      );
+      .andThen((claim) => {
+        if (claim.claimed) {
+          return ok(view);
+        }
+        if (claim.reason === 'ALREADY_SUBMITTED') {
+          return err(paymentAlreadySubmitted(view.transaction.id));
+        }
+
+        const { productId, quantity } = view.transaction.toPlainObject();
+        return err(outOfStock(productId, quantity, claim.available));
+      });
   }
 
   /**
