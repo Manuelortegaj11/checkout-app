@@ -21,6 +21,7 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 - [Seguridad](#seguridad)
 - [Ejecución en local](#ejecución-en-local)
 - [Despliegue](#despliegue)
+- [Flujo de trabajo y uso de IA](#flujo-de-trabajo-y-uso-de-ia)
 
 ## Flujo de la compra
 
@@ -378,3 +379,8 @@ La SPA no necesita variables de entorno: llama a `/api` en su mismo origen (Vite
 ## Despliegue
 
 _Esta sección se completa con el despliegue._ La arquitectura prevista es un servidor con Nginx, que sirve la SPA y reenvía `/api` a la API de NestJS gestionada con PM2, PostgreSQL en Docker y HTTPS con Certbot.
+
+## Flujo de trabajo y uso de IA
+
+- **Git:** cada funcionalidad se desarrolla en su rama (`feature/`, `fix/`, `docs/`…) desde `staging` y vuelve por Pull Request con merge commit, para conservar el historial. `main` solo recibe la entrega final. Los commits siguen Conventional Commits, en español, y cada uno compila y pasa sus pruebas.
+- **IA como asistente:** el proyecto se desarrolló con Claude Code. [`CLAUDE.md`](CLAUDE.md) recoge las reglas del proyecto (arquitectura, seguridad, base de datos, pruebas y Git), y las skills de [`.claude/skills/`](.claude/skills/) guían, paso a paso, cómo crear una funcionalidad en el backend y en el frontend. Las reglas que no pueden quedar a criterio de nadie, ni de una persona ni de la IA, las hace cumplir ESLint: capas, `fetch` y `localStorage` en un solo lugar, datos de tarjeta fuera del store, y nada de hora ni azar implícitos en el dominio.
