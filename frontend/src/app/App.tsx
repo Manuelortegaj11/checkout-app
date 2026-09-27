@@ -3,6 +3,7 @@ import {
   PayWithCardButton,
   PaymentModal,
   selectCheckoutStep,
+  SummaryBackdrop,
 } from '@features/checkout';
 import { ProductCatalog } from '@features/products';
 import { useAppSelector } from '@store/hooks';
@@ -23,6 +24,7 @@ export function App() {
         )}
       />
       {step === CHECKOUT_STEP.PAYMENT_FORM && <PaymentModal />}
+      {step === CHECKOUT_STEP.SUMMARY && <SummaryBackdrop />}
     </AppLayout>
   );
 }

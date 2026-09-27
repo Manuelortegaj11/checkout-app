@@ -32,3 +32,7 @@ export const detectCardBrand = (digits: string): CardBrand | null => {
   }
   return null;
 };
+
+/** La marca que devuelve la pasarela es una de las que la tienda sabe mostrar. */
+export const isCardBrand = (value: string): value is CardBrand =>
+  Object.values<string>(CARD_BRAND).includes(value);

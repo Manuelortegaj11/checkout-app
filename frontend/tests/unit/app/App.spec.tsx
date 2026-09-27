@@ -5,6 +5,7 @@ import { productsApi } from '@shared/api/products.api';
 import {
   aCheckoutConfig,
   aCheckoutState,
+  aTokenizedCard,
 } from '@testing/fixtures/checkout.fixture';
 import { aProduct, PRODUCT_ID } from '@testing/fixtures/product.fixture';
 import { renderWithStore } from '@testing/helpers/render-with-store';
@@ -47,5 +48,25 @@ describe('App', () => {
       await screen.findByRole('dialog', { name: 'Pago con tarjeta' }),
     ).toBeInTheDocument();
     expect(await screen.findByLabelText('Nombre completo')).toBeInTheDocument();
+  });
+
+  it('en el paso de resumen muestra el backdrop con el desglose', async () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue([aProduct()]);
+    jest.spyOn(checkoutApi, 'getConfig').mockResolvedValue(aCheckoutConfig());
+
+    renderWithStore(<App />, {
+      preloadedState: {
+        checkout: aCheckoutState({
+          step: 'SUMMARY',
+          productId: PRODUCT_ID,
+          card: aTokenizedCard(),
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Resumen del pago' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Total a pagar')).toBeInTheDocument();
   });
 });

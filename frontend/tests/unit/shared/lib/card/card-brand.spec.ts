@@ -1,4 +1,4 @@
-import { detectCardBrand } from '@shared/lib/card/card-brand';
+import { detectCardBrand, isCardBrand } from '@shared/lib/card/card-brand';
 
 describe('detectCardBrand', () => {
   it.each([
@@ -21,5 +21,15 @@ describe('detectCardBrand', () => {
     ['American Express', '378282246310005'],
   ])('no reconoce %s', (_case, digits) => {
     expect(detectCardBrand(digits)).toBeNull();
+  });
+});
+
+describe('isCardBrand', () => {
+  it.each(['VISA', 'MASTERCARD'])('%s es una marca conocida', (value) => {
+    expect(isCardBrand(value)).toBe(true);
+  });
+
+  it.each(['AMEX', 'visa', ''])('%p no lo es', (value) => {
+    expect(isCardBrand(value)).toBe(false);
   });
 });
