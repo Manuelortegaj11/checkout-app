@@ -37,6 +37,11 @@ const gatewayRejected = appError(
   'PAYMENT_GATEWAY_REJECTED',
   'Payment gateway rejected the request',
 );
+const gatewayUnavailable = appError(
+  'EXTERNAL_SERVICE',
+  'PAYMENT_GATEWAY_UNAVAILABLE',
+  'Payment gateway is unavailable',
+);
 const dbError = appError(
   'INFRASTRUCTURE',
   'DB_QUERY_FAILED',
@@ -63,6 +68,9 @@ describe('SubmitPaymentUseCase', () => {
     );
     transactions.savePaymentResult.mockReturnValue(okAsync(undefined));
     paymentGateway.charge.mockReturnValue(okAsync(aPaymentResult()));
+    paymentGateway.waitForFinalStatus.mockReturnValue(
+      okAsync(aPaymentResult({ status: 'PENDING' })),
+    );
   });
 
   describe('camino feliz', () => {
@@ -137,6 +145,36 @@ describe('SubmitPaymentUseCase', () => {
         finalizedAt: null,
       });
       expect(saved().pendingPaymentId()).toBe(GATEWAY_TRANSACTION_ID);
+      expect(paymentGateway.waitForFinalStatus).toHaveBeenCalledWith(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+    });
+
+    it('guarda el id antes de esperar y después liquida el resultado final', async () => {
+      const pending = aPaymentResult({ status: 'PENDING' });
+      paymentGateway.charge.mockReturnValue(okAsync(pending));
+      paymentGateway.waitForFinalStatus.mockReturnValue(
+        okAsync(aPaymentResult({ status: 'APPROVED' })),
+      );
+
+      const result = await useCase.execute(input);
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(transactions.savePaymentResult).toHaveBeenCalledTimes(2);
+      expect(
+        transactions.savePaymentResult.mock.calls[0][0].toPlainObject(),
+      ).toMatchObject({
+        status: 'PENDING',
+        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+      });
+      expect(
+        transactions.savePaymentResult.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        paymentGateway.waitForFinalStatus.mock.invocationCallOrder[0],
+      );
+      expect(
+        transactions.savePaymentResult.mock.calls[1][0].toPlainObject(),
+      ).toMatchObject({ status: 'APPROVED' });
     });
   });
 
@@ -246,6 +284,16 @@ describe('SubmitPaymentUseCase', () => {
       const result = await useCase.execute(input);
 
       expect(result._unsafeUnwrapErr()).toBe(gatewayRejected);
+    });
+
+    it('si el resultado es ambiguo conserva PENDING y no libera la reserva', async () => {
+      paymentGateway.charge.mockReturnValue(errAsync(gatewayUnavailable));
+
+      const result = await useCase.execute(input);
+
+      expect(result._unsafeUnwrapErr()).toBe(gatewayUnavailable);
+      expect(transactions.savePaymentResult).not.toHaveBeenCalled();
+      expect(paymentGateway.waitForFinalStatus).not.toHaveBeenCalled();
     });
   });
 

@@ -90,7 +90,7 @@ export class TransactionController {
   @ApiBadGatewayResponse({
     type: ErrorResponse,
     description:
-      'La pasarela rechazó el cobro (PAYMENT_GATEWAY_REJECTED) o no respondió (PAYMENT_GATEWAY_UNAVAILABLE). La transacción queda en ERROR',
+      'Si la pasarela rechaza el cobro (PAYMENT_GATEWAY_REJECTED), la transacción queda en ERROR. Si no responde (PAYMENT_GATEWAY_UNAVAILABLE), permanece PENDING con el stock reservado: consultar por GET y no volver a cobrar',
   })
   @ApiTooManyRequestsResponse({
     type: ErrorResponse,

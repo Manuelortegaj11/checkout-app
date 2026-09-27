@@ -2,7 +2,10 @@ import type { SubmitPaymentInput } from '@application/dtos/transaction/submit-pa
 import type { TransactionOutput } from '@application/dtos/transaction/transaction.output';
 import type { TransactionView } from '@application/dtos/transaction/transaction-view';
 import type { ClockPort } from '@application/ports/clock.port';
-import type { PaymentGatewayPort } from '@application/ports/payment-gateway.port';
+import {
+  PAYMENT_GATEWAY_ERROR_CODE,
+  type PaymentGatewayPort,
+} from '@application/ports/payment-gateway.port';
 import type { TransactionRepositoryPort } from '@application/ports/transaction.repository.port';
 import type { UseCase } from '@application/ports/use-case.port';
 import type { PaymentResult } from '@domain/entities/transaction.entity';
@@ -11,6 +14,7 @@ import {
   paymentAlreadySubmitted,
   transactionNotFound,
 } from '@domain/errors/transaction.errors';
+import { isFinalStatus } from '@domain/rules/transaction-status.rules';
 import type { AppError } from '@shared/errors/app-error';
 import {
   err,
@@ -51,8 +55,14 @@ export class SubmitPaymentUseCase implements UseCase<
         this.charge(view, input).map((payment) => ({ view, payment })),
       )
       .andThen(({ view, payment }) =>
-        recordPaymentResult(this.transactions, view, payment, this.clock.now()),
+        recordPaymentResult(
+          this.transactions,
+          view,
+          payment,
+          this.clock.now(),
+        ).map((recorded) => ({ view: recorded, payment })),
       )
+      .andThen(({ view, payment }) => this.waitForFinalResult(view, payment))
       .map(toTransactionOutput);
   }
 
@@ -85,8 +95,8 @@ export class SubmitPaymentUseCase implements UseCase<
   }
 
   /**
-   * Envía el cobro. Si la pasarela lo rechaza o no responde, la compra termina
-   * en ERROR (compensación) y se devuelve el error original.
+   * Envía el cobro. Solo un rechazo confirmado termina la compra en ERROR; si
+   * no hubo respuesta, conserva PENDING y la reserva porque el cobro pudo existir.
    */
   private charge(
     view: TransactionView,
@@ -105,14 +115,41 @@ export class SubmitPaymentUseCase implements UseCase<
         acceptanceToken: input.acceptanceToken,
         personalDataAuthToken: input.personalDataAuthToken,
       })
-      .orElse((error) =>
-        this.failPayment(view, error).andThen(() => errAsync(error)),
+      .orElse((error) => {
+        if (error.code !== PAYMENT_GATEWAY_ERROR_CODE.REJECTED) {
+          return errAsync(error);
+        }
+
+        return this.failPayment(view, error).andThen(() => errAsync(error));
+      });
+  }
+
+  /** El id ya está persistido: ahora es seguro esperar y sincronizar el estado. */
+  private waitForFinalResult(
+    view: TransactionView,
+    payment: PaymentResult,
+  ): ResultAsync<TransactionView, AppError> {
+    if (isFinalStatus(payment.status)) {
+      return okAsync(view);
+    }
+
+    return this.paymentGateway
+      .waitForFinalStatus(payment)
+      .andThen((latest) =>
+        isFinalStatus(latest.status)
+          ? recordPaymentResult(
+              this.transactions,
+              view,
+              latest,
+              this.clock.now(),
+            )
+          : okAsync(view),
       );
   }
 
   /**
-   * Compensación: la compra termina en ERROR con el motivo. Si ni eso se puede
-   * guardar, prevalece el error original de la pasarela.
+   * Compensación de un rechazo confirmado: la compra termina en ERROR y libera
+   * el stock. Si ni eso se puede guardar, prevalece el error de la pasarela.
    */
   private failPayment(
     view: TransactionView,

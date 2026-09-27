@@ -5,6 +5,11 @@ import type { ResultAsync } from '@shared/result';
 
 export const PAYMENT_GATEWAY = Symbol('PAYMENT_GATEWAY');
 
+export const PAYMENT_GATEWAY_ERROR_CODE = {
+  REJECTED: 'PAYMENT_GATEWAY_REJECTED',
+  UNAVAILABLE: 'PAYMENT_GATEWAY_UNAVAILABLE',
+} as const;
+
 /** Documento legal que el cliente debe aceptar antes de pagar. */
 export interface AcceptanceContract {
   /** Prueba de que se mostró esta versión del documento; se envía al cobrar. */
@@ -53,10 +58,16 @@ export interface PaymentGatewayPort {
   getAcceptanceContracts(): ResultAsync<AcceptanceContracts, AppError>;
 
   /**
-   * Envía el cobro. Espera unos segundos a que llegue a un estado final; si no
-   * llega, devuelve PENDING y el resultado se consulta después con `getPayment`.
+   * Envía el cobro y devuelve inmediatamente la respuesta de creación. Si
+   * queda PENDING, el id se persiste antes de esperar su resultado final.
    */
   charge(request: PaymentRequest): ResultAsync<PaymentResult, AppError>;
+
+  /**
+   * Espera de forma acotada el resultado final de un cobro ya creado. Una
+   * consulta fallida conserva el último estado conocido para sincronizarlo luego.
+   */
+  waitForFinalStatus(payment: PaymentResult): ResultAsync<PaymentResult, never>;
 
   /** Estado actual de un cobro ya enviado. */
   getPayment(

@@ -70,17 +70,19 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
 
   /**
    * Crea el cobro (autenticado con la llave pública y firmado con el secreto de
-   * integridad) y espera unos segundos su estado final.
+   * integridad). Devuelve enseguida para que el caso de uso persista su id.
    */
   charge(request: PaymentRequest): ResultAsync<PaymentResult, AppError> {
     return postJson(`${this.baseUrl}/transactions`, this.chargeBody(request), {
       bearerToken: this.publicKey,
       timeoutMs: this.timeoutMs,
-    })
-      .andThen(toPaymentResult)
-      .andThen((payment) =>
-        ResultAsync.fromSafePromise(this.waitForFinalStatus(payment)),
-      );
+    }).andThen(toPaymentResult);
+  }
+
+  waitForFinalStatus(
+    payment: PaymentResult,
+  ): ResultAsync<PaymentResult, never> {
+    return ResultAsync.fromSafePromise(this.pollUntilFinal(payment));
   }
 
   /** La consulta es pública en la pasarela: no necesita credenciales. */
@@ -114,9 +116,7 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
    * El cobro ya existe en la pasarela: un fallo al consultar no lo convierte en
    * error, se devuelve el último estado conocido y se sincroniza después.
    */
-  private async waitForFinalStatus(
-    payment: PaymentResult,
-  ): Promise<PaymentResult> {
+  private async pollUntilFinal(payment: PaymentResult): Promise<PaymentResult> {
     let latest = payment;
 
     for (

@@ -6,5 +6,6 @@ export const mockPaymentGateway = (): jest.Mocked<PaymentGatewayPort> => ({
   getPublicSettings: jest.fn().mockReturnValue(aPaymentGatewayPublicSettings()),
   getAcceptanceContracts: jest.fn(),
   charge: jest.fn(),
+  waitForFinalStatus: jest.fn(),
   getPayment: jest.fn(),
 });
