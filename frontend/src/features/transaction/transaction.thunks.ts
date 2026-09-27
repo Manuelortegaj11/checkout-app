@@ -45,7 +45,10 @@ export const payTransaction = createAppAsyncThunk(
   },
 );
 
-/** Estado actual de la transacción, sincronizado con la pasarela si sigue pendiente. */
+/**
+ * Estado actual de la transacción, sincronizado con la pasarela si sigue
+ * pendiente. No lanza otra petición si ya hay una en curso.
+ */
 export const fetchTransaction = createAppAsyncThunk(
   'transaction/fetch',
   async (id: string, { rejectWithValue }) => {
@@ -54,6 +57,9 @@ export const fetchTransaction = createAppAsyncThunk(
     } catch (error) {
       return rejectWithValue(errorCodeOf(error));
     }
+  },
+  {
+    condition: (_, { getState }) => getState().transaction.status !== 'loading',
   },
 );
 

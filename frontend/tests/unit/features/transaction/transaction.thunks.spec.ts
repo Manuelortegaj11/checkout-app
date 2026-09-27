@@ -77,6 +77,20 @@ describe('thunks de la transacción', () => {
     );
   });
 
+  it('fetchTransaction no lanza una segunda consulta mientras la primera sigue en curso', async () => {
+    const get = jest
+      .spyOn(transactionsApi, 'get')
+      .mockResolvedValue(anApprovedTransaction());
+    const store = makeStore();
+
+    await Promise.all([
+      store.dispatch(fetchTransaction(TRANSACTION_ID)),
+      store.dispatch(fetchTransaction(TRANSACTION_ID)),
+    ]);
+
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
   describe('rechazan con el code del ApiError', () => {
     const failWith = (code: string) => new ApiError(code, 409, 'failed');
 
