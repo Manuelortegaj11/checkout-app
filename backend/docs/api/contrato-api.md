@@ -30,7 +30,7 @@ sequenceDiagram
     API-->>SPA: 201 transacción (id, referencia, montos)
 
     SPA->>API: POST /api/transactions/:id/payment
-    API->>PG: crear transacción (llave privada + firma)
+    API->>PG: crear transacción (llave pública + firma de integridad)
     API->>PG: consultar estado (hasta ~10 s)
     alt estado final
         API->>DB: liquidar (estado, stock, entrega)
