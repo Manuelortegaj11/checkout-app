@@ -551,6 +551,7 @@ El frontend decide qué mostrar según el `code`, nunca según el `message`.
 - **Referencia única:** la pasarela rechaza una referencia repetida ("La referencia ya ha sido usada"). La nuestra deriva del id de la transacción, así que nunca se repite.
 - **Contratos (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/merchants/{llavePública}`. De la respuesta se usan `data.presigned_acceptance` (política de uso) y `data.presigned_personal_data_auth` (datos personales), cada uno con `acceptance_token` y `permalink`. La respuesta se valida antes de usarla: si falta un campo, se responde `PAYMENT_GATEWAY_UNAVAILABLE`.
 - **Timeout:** cada petición a la pasarela se corta a los `PAYMENT_GATEWAY_TIMEOUT_MS` (10 s por defecto).
+- **Reintentos solo en las consultas:** los `GET` (contratos y estado del cobro) son idempotentes, así que se reintentan ante un fallo pasajero: error de red, 5xx o 429. Hasta `PAYMENT_GATEWAY_GET_RETRIES` veces (2 por defecto), esperando `PAYMENT_GATEWAY_RETRY_BACKOFF_MS` (250 ms) y el doble en cada reintento. Todos los intentos comparten el mismo timeout: reintentar nunca alarga la espera total. Un 4xx no se reintenta porque la respuesta no cambiará. **El `POST` del cobro nunca se reintenta:** no es idempotente y un segundo envío podría cobrar dos veces.
 - **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404. El secreto de integridad tiene el caso inverso: dos `I` mayúsculas que en la imagen parecen `l`; con las `l` la pasarela responde "La firma es inválida".
 - **Riesgos conocidos:** si la pasarela no responde **al crear** el cobro, la compra queda en `ERROR`; si en realidad sí lo creó, no se concilia automáticamente (se haría con webhooks, que no se usan porque la cuenta del Sandbox es compartida). Si se aprueba un cobro cuando ya no queda stock (dos compras de la última unidad a la vez), se registra `APPROVED` y una advertencia en el log.
 
@@ -582,6 +583,8 @@ Fecha de vencimiento futura y CVC de 3 dígitos.
 | `PAYMENT_GATEWAY_INTEGRITY_SECRET` | Secreto de integridad: firma cada cobro. Obligatorio |
 | `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` | Espera máxima del estado final tras cobrar (por defecto `10000`) |
 | `PAYMENT_GATEWAY_POLL_INTERVAL_MS` | Frecuencia de consulta durante la espera (por defecto `1000`) |
+| `PAYMENT_GATEWAY_GET_RETRIES` | Reintentos de una consulta `GET` ante un fallo pasajero (por defecto `2`, máximo `5`). El cobro nunca se reintenta |
+| `PAYMENT_GATEWAY_RETRY_BACKOFF_MS` | Espera antes del primer reintento; se duplica en cada uno (por defecto `250`) |
 
 **Frontend:** no necesita variables de entorno. Llama a la API en `/api`, en su mismo origen, y recibe la URL de la pasarela y la llave pública en `GET /api/checkout/config`. Así la configuración de la pasarela vive en un solo lugar, el `.env` del backend, y cambiar de llave no obliga a recompilar la SPA.
 
