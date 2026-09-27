@@ -70,6 +70,113 @@ describe('getJson', () => {
     // El SyntaxError nace en el realm de fetch (Node), no en el de Jest: se compara por nombre.
     expect((error.cause as Error).name).toBe('SyntaxError');
   });
+
+  it('sin política de reintentos hace un único intento', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 503));
+
+    await getJson(url, 5_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('con reintentos', () => {
+    // Espera corta para los tests: 1 ms y luego 2 ms.
+    const retry = { retries: 2, backoffMs: 1 };
+
+    it.each([
+      ['un 5xx', () => fetchMock.mockResolvedValueOnce(jsonResponse({}, 503))],
+      ['un 429', () => fetchMock.mockResolvedValueOnce(jsonResponse({}, 429))],
+      [
+        'un fallo de red',
+        () => fetchMock.mockRejectedValueOnce(new TypeError('fetch failed')),
+      ],
+    ])(
+      'reintenta %s y devuelve la respuesta que llega bien',
+      async (_, fail) => {
+        fail();
+        fetchMock.mockResolvedValueOnce(jsonResponse({ data: { id: 1 } }));
+
+        const result = await getJson(url, 5_000, retry);
+
+        expect(result._unsafeUnwrap()).toEqual({ data: { id: 1 } });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it('no reintenta un 4xx: la respuesta no cambiará', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({}, 404));
+
+      const result = await getJson(url, 5_000, retry);
+
+      expect(result._unsafeUnwrapErr()).toMatchObject({
+        code: 'PAYMENT_GATEWAY_UNAVAILABLE',
+        cause: { status: 404 },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('agotados los reintentos, devuelve el último fallo con su estado', async () => {
+      // Una respuesta nueva por intento: el cuerpo de cada una se lee una sola vez.
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(jsonResponse({ error: 'boom' }, 503)),
+      );
+
+      const result = await getJson(url, 5_000, retry);
+
+      expect(result._unsafeUnwrapErr()).toMatchObject({
+        code: 'PAYMENT_GATEWAY_UNAVAILABLE',
+        cause: { status: 503, body: '{"error":"boom"}' },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1 + 2);
+    });
+
+    it('todos los intentos comparten el mismo tiempo límite', async () => {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(jsonResponse({}));
+
+      await getJson(url, 5_000, retry);
+
+      const [[, first], [, second]] = fetchMock.mock.calls as [
+        string,
+        RequestInit,
+      ][];
+      expect(second.signal).toBe(first.signal);
+    });
+
+    it('si el tiempo límite vence durante la espera, no reintenta', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({}, 503));
+
+      const result = await getJson(url, 20, {
+        retries: 2,
+        backoffMs: 60_000,
+      });
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('si el tiempo límite vence durante una petición, no reintenta', async () => {
+      fetchMock.mockImplementation(
+        (_url: string, { signal }: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener('abort', () =>
+              reject(signal.reason as DOMException),
+            );
+          }),
+      );
+
+      const result = await getJson(url, 20, retry);
+
+      expect(result._unsafeUnwrapErr()).toMatchObject({
+        code: 'PAYMENT_GATEWAY_UNAVAILABLE',
+        cause: { name: 'TimeoutError' },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe('postJson', () => {

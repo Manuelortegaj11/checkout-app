@@ -68,6 +68,22 @@ export class EnvironmentVariables {
   @Max(10_000)
   PAYMENT_GATEWAY_POLL_INTERVAL_MS: number = 1_000;
 
+  /**
+   * Reintentos de una consulta GET a la pasarela ante un fallo pasajero (red,
+   * 5xx, 429). Caben dentro de PAYMENT_GATEWAY_TIMEOUT_MS. El cobro nunca se
+   * reintenta.
+   */
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  PAYMENT_GATEWAY_GET_RETRIES: number = 2;
+
+  /** Espera antes del primer reintento; se duplica en cada uno. */
+  @IsInt()
+  @Min(50)
+  @Max(5_000)
+  PAYMENT_GATEWAY_RETRY_BACKOFF_MS: number = 250;
+
   /** Tarifa base que se cobra en cada compra, en centavos. */
   @IsInt()
   @Min(0)

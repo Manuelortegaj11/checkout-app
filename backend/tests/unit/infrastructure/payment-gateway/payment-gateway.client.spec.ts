@@ -25,6 +25,9 @@ describe('PaymentGatewayHttpClient', () => {
         // Espera corta para los tests: hasta 3 consultas, cada 1 ms.
         PAYMENT_GATEWAY_POLL_TIMEOUT_MS: 3,
         PAYMENT_GATEWAY_POLL_INTERVAL_MS: 1,
+        // Hasta 2 reintentos por consulta, con 1 ms y luego 2 ms de espera.
+        PAYMENT_GATEWAY_GET_RETRIES: 2,
+        PAYMENT_GATEWAY_RETRY_BACKOFF_MS: 1,
       }),
     );
 
@@ -100,6 +103,20 @@ describe('PaymentGatewayHttpClient', () => {
       expect(result._unsafeUnwrapErr().code).toBe(
         'PAYMENT_GATEWAY_UNAVAILABLE',
       );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('reintenta si la pasarela falla un momento', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, 502))
+        .mockResolvedValueOnce(jsonResponse(aMerchantResponse()));
+
+      const result = await clientWith(
+        'https://gateway.test/v1',
+      ).getAcceptanceContracts();
+
+      expect(result._unsafeUnwrap()).toEqual(anAcceptanceContracts());
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -130,6 +147,21 @@ describe('PaymentGatewayHttpClient', () => {
         status: 'DECLINED',
         statusMessage: 'La transacción fue rechazada (Sandbox)',
       });
+    });
+
+    it('reintenta una consulta que falla por la red', async () => {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(
+          jsonResponse(aGatewayTransactionResponse({ status: 'APPROVED' })),
+        );
+
+      const result = await clientWith('https://gateway.test/v1').getPayment(
+        GATEWAY_TRANSACTION_ID,
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it('falla con PAYMENT_GATEWAY_UNAVAILABLE si el cobro no existe en la pasarela', async () => {
@@ -230,6 +262,18 @@ describe('PaymentGatewayHttpClient', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1 + 3);
     });
 
+    it('una consulta que falla un momento se reintenta y llega al estado final', async () => {
+      fetchMock
+        .mockResolvedValueOnce(created('PENDING'))
+        .mockResolvedValueOnce(jsonResponse({}, 503))
+        .mockResolvedValueOnce(current('APPROVED'));
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
     it('si falla una consulta conserva el cobro ya creado con su último estado', async () => {
       fetchMock
         .mockResolvedValueOnce(created('PENDING'))
@@ -270,6 +314,17 @@ describe('PaymentGatewayHttpClient', () => {
       expect(result._unsafeUnwrapErr().code).toBe(
         'PAYMENT_GATEWAY_UNAVAILABLE',
       );
+    });
+
+    it('nunca repite el cobro: un 5xx del POST no se reintenta', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 503));
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 });

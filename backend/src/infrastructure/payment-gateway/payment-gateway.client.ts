@@ -15,7 +15,7 @@ import { ResultAsync } from '@shared/result';
 import { toPaymentResult } from './gateway-transaction.response';
 import { integritySignature } from './integrity-signature';
 import { toAcceptanceContracts } from './merchant.response';
-import { getJson, postJson } from './payment-gateway.http';
+import { getJson, postJson, type RetryPolicy } from './payment-gateway.http';
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,6 +29,8 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
   private readonly timeoutMs: number;
   private readonly pollIntervalMs: number;
   private readonly pollAttempts: number;
+  /** Reintentos de las consultas (GET), que son idempotentes. El cobro no se reintenta. */
+  private readonly getRetry: RetryPolicy;
 
   constructor(config: ConfigService<EnvironmentVariables, true>) {
     this.baseUrl = config
@@ -46,6 +48,12 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
       config.get('PAYMENT_GATEWAY_POLL_TIMEOUT_MS', { infer: true }) /
         this.pollIntervalMs,
     );
+    this.getRetry = {
+      retries: config.get('PAYMENT_GATEWAY_GET_RETRIES', { infer: true }),
+      backoffMs: config.get('PAYMENT_GATEWAY_RETRY_BACKOFF_MS', {
+        infer: true,
+      }),
+    };
   }
 
   getPublicSettings(): PaymentGatewayPublicSettings {
@@ -55,7 +63,9 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
   getAcceptanceContracts(): ResultAsync<AcceptanceContracts, AppError> {
     const url = `${this.baseUrl}/merchants/${encodeURIComponent(this.publicKey)}`;
 
-    return getJson(url, this.timeoutMs).andThen(toAcceptanceContracts);
+    return getJson(url, this.timeoutMs, this.getRetry).andThen(
+      toAcceptanceContracts,
+    );
   }
 
   /**
@@ -79,7 +89,7 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
   ): ResultAsync<PaymentResult, AppError> {
     const url = `${this.baseUrl}/transactions/${encodeURIComponent(gatewayTransactionId)}`;
 
-    return getJson(url, this.timeoutMs).andThen(toPaymentResult);
+    return getJson(url, this.timeoutMs, this.getRetry).andThen(toPaymentResult);
   }
 
   private chargeBody(request: PaymentRequest) {
