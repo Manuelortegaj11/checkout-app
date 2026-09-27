@@ -272,6 +272,7 @@ stateDiagram-v2
 | `POST` | `/api/transactions` | Transacciones, clientes, entregas | Crear la transacción `PENDING` |
 | `POST` | `/api/transactions/:id/payment` | Transacciones | Enviar el pago a la pasarela |
 | `GET` | `/api/transactions/:id` | Transacciones | Consultar (y sincronizar) el estado |
+| `GET` | `/api/health` | — | Comprobar que la API está en marcha (para el despliegue). Sin rate limiting |
 
 **Clientes y entregas no tienen endpoints propios.** Son módulos completos del backend (dominio, casos de uso y repositorios), pero se crean y se leen a través de las transacciones. Exponer `GET /customers` o `GET /deliveries` sin autenticación filtraría datos personales.
 
