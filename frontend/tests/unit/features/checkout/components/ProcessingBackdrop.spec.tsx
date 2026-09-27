@@ -123,7 +123,7 @@ describe('ProcessingBackdrop', () => {
 
       expect(get).toHaveBeenCalledTimes(POLL_MAX_ATTEMPTS + 1);
       expect(screen.getByRole('status')).toHaveTextContent(
-        'Procesando tu pago',
+        'Un momento, por favor',
       );
     } finally {
       jest.useRealTimers();

@@ -70,7 +70,7 @@ export function ProcessingBackdrop() {
             consulta de nuevo en unos minutos.
           </Notice>
         ) : (
-          <Spinner label="Procesando tu pago" />
+          <Spinner label="Un momento, por favor" />
         )}
         <PaymentProgress
           registered={transactionId !== null}
