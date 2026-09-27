@@ -661,39 +661,38 @@ El controlador inyecta el caso de uso por su clase (`constructor(private readonl
 
 ## El riel del pago
 
-El caso de uso más delicado es el que cobra (`SubmitPaymentUseCase`). Tiene que garantizar tres cosas: **nunca cobrar dos veces**, **nunca dejar una compra colgada** si la pasarela falla y **descontar el stock una sola vez** aunque varias peticiones liquiden a la vez.
+El caso de uso más delicado es el que cobra (`SubmitPaymentUseCase`). Tiene que garantizar tres cosas: **nunca cobrar dos veces**, **no cobrar sin inventario** y **devolver una reserva una sola vez** aunque varias peticiones liquiden a la vez.
 
 ```mermaid
 flowchart TD
     A["buscar transacción + producto + cliente"] --> B["dominio: startPayment<br/>(PENDING y sin envío previo)"]
-    B --> C["regla: checkStockAvailable"]
-    C --> D["repositorio: claimPaymentSubmission<br/>UPDATE … WHERE payment_submitted_at IS NULL"]
-    D --> E["pasarela: charge<br/>(firma + espera ~10 s el estado final)"]
-    E --> F["recordPaymentResult:<br/>applyPaymentResult + savePaymentResult"]
-    F --> OK([ok: APPROVED / DECLINED / PENDING])
+    B --> C["repositorio: claimPaymentSubmission<br/>reclamar envío + reservar stock"]
+    C --> D["pasarela: charge<br/>(firma + espera ~10 s el estado final)"]
+    D --> E["recordPaymentResult:<br/>liquidar + conservar o devolver reserva"]
+    E --> OK([ok: APPROVED / DECLINED / PENDING])
     A -. "TRANSACTION_NOT_FOUND" .-> KO([err])
     B -. "TRANSACTION_ALREADY_RESOLVED<br/>PAYMENT_ALREADY_SUBMITTED" .-> KO
-    C -. "OUT_OF_STOCK" .-> KO
-    D -. "PAYMENT_ALREADY_SUBMITTED<br/>(otra petición se adelantó)" .-> KO
-    E -. "PAYMENT_GATEWAY_REJECTED / UNAVAILABLE" .-> COMP["orElse: failPayment → ERROR<br/>(compensación)"] -.-> KO
+    C -. "OUT_OF_STOCK<br/>PAYMENT_ALREADY_SUBMITTED" .-> KO
+    D -. "PAYMENT_GATEWAY_REJECTED / UNAVAILABLE" .-> COMP["orElse: failPayment → ERROR<br/>cancelar entrega + devolver stock"] -.-> KO
 ```
 
 - **Un pago rechazado no es un error del riel.** `DECLINED` es un resultado de negocio válido y viaja por el riel de éxito (HTTP 200, con el motivo en `statusMessage`).
 - **Doble envío imposible.** Primero lo comprueba el dominio (`startPayment`). Después, un `UPDATE` condicional en PostgreSQL (`claimPaymentSubmission`) resuelve la carrera entre dos peticiones simultáneas: solo una encuentra `payment_submitted_at` vacío.
-- **Compensación.** Si la pasarela rechaza o no recibe el cobro, `orElse` deja la compra en `ERROR` (con la entrega cancelada) y devuelve el error original. Si ni siquiera eso se puede guardar, prevalece el error de la pasarela.
+- **Sobreventa imposible.** Esa misma transacción de base de datos decrementa el producto con `WHERE stock >= quantity`. Si dos compras compiten por la última unidad, solo una obtiene la reserva y llega a la pasarela.
+- **Compensación.** Si la pasarela rechaza o no recibe el cobro, `orElse` deja la compra en `ERROR`, cancela la entrega, devuelve la reserva y conserva el error original. Si ni siquiera eso se puede guardar, prevalece el error de la pasarela.
 - **Espera acotada.** El adapter consulta el estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS`. Si no llega a un estado final, se responde `PENDING` y la consulta sigue en `GET /api/transactions/:id`.
 
 ### Liquidación compartida
 
-`recordPaymentResult` es la regla que comparten el pago y la consulta (`GetTransactionUseCase`). Aplica la respuesta de la pasarela en el dominio (`applyPaymentResult`) y la persiste (`savePaymentResult`). Si el estado es final, eso liquida la compra **en una sola transacción de base de datos**:
+`recordPaymentResult` es la regla que comparten el pago y la consulta (`GetTransactionUseCase`). Aplica la respuesta de la pasarela en el dominio (`applyPaymentResult`) y la persiste (`savePaymentResult`). El stock ya está reservado; si el estado es final, la compra se liquida **en una sola transacción de base de datos**:
 
 | Resultado | Transacción | Entrega | Stock |
 |-----------|-------------|---------|-------|
-| `APPROVED` | `APPROVED` + `finalizedAt` | `ASSIGNED` | `stock - quantity` (solo si `stock >= quantity`) |
-| `DECLINED` / `VOIDED` / `ERROR` | ese estado + motivo | `CANCELLED` | sin cambios |
-| `PENDING` | registra el id del cobro | sin cambios | sin cambios |
+| `APPROVED` | `APPROVED` + `finalizedAt` | `ASSIGNED` | conserva la reserva |
+| `DECLINED` / `VOIDED` / `ERROR` | ese estado + motivo | `CANCELLED` | `stock + quantity` (devuelve la reserva) |
+| `PENDING` | registra el id del cobro | sin cambios | conserva la reserva |
 
-La liquidación es **idempotente**: el `UPDATE` está condicionado a `status = 'PENDING'`. Si la SPA consulta dos veces a la vez y ambas encuentran el cobro aprobado, PostgreSQL bloquea la fila, la segunda no encuentra nada que actualizar y el stock se descuenta una sola vez.
+La liquidación es **idempotente**: el `UPDATE` está condicionado a `status = 'PENDING'`. Si dos consultas encuentran el mismo resultado final, PostgreSQL bloquea la fila y solo la primera asigna o cancela la entrega y, cuando corresponde, devuelve la reserva.
 
 ### Consulta y sincronización
 

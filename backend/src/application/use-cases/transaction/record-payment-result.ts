@@ -7,7 +7,7 @@ import type { ResultAsync } from '@shared/result';
 /**
  * Regla de liquidación compartida por el pago y la consulta: aplica la
  * respuesta de la pasarela a la transacción y la guarda. Si el estado es
- * final, eso liquida la compra (estado, entrega y stock) de forma atómica.
+ * final, eso liquida la compra y devuelve la reserva si no fue aprobada.
  */
 export const recordPaymentResult = (
   transactions: TransactionRepositoryPort,

@@ -1,7 +1,8 @@
-import { Injectable, Logger, type Provider } from '@nestjs/common';
+import { Injectable, type Provider } from '@nestjs/common';
 import type { TransactionView } from '@application/dtos/transaction/transaction-view';
 import {
   TRANSACTION_REPOSITORY,
+  type PaymentSubmissionClaim,
   type TransactionRepositoryPort,
 } from '@application/ports/transaction.repository.port';
 import { TRANSACTION_STATUS } from '@domain/constants/transaction.constants';
@@ -20,8 +21,6 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class TransactionPrismaRepository implements TransactionRepositoryPort {
-  private readonly logger = new Logger(TransactionPrismaRepository.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
   /** La escritura anidada guarda transacción y entrega de forma atómica. */
@@ -45,26 +44,16 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
     ).andThen((row) => (row ? toTransactionView(row) : ok(null)));
   }
 
-  /**
-   * UPDATE condicional: PostgreSQL bloquea la fila, así que si dos peticiones
-   * llegan a la vez solo una encuentra `payment_submitted_at` vacío.
-   */
+  /** Reclama el envío y reserva el stock dentro de la misma transacción. */
   claimPaymentSubmission(
     transaction: Transaction,
-  ): ResultAsync<boolean, AppError> {
-    const { id, paymentSubmittedAt } = transaction.toPlainObject();
-
+  ): ResultAsync<PaymentSubmissionClaim, AppError> {
     return ResultAsync.fromPromise(
-      this.prisma.transaction.updateMany({
-        where: {
-          id,
-          status: TRANSACTION_STATUS.PENDING,
-          paymentSubmittedAt: null,
-        },
-        data: { paymentSubmittedAt },
-      }),
+      this.prisma.$transaction((tx) =>
+        this.claimPaymentAndReserveStock(tx, transaction),
+      ),
       databaseError,
-    ).map(({ count }) => count === 1);
+    );
   }
 
   savePaymentResult(transaction: Transaction): ResultAsync<void, AppError> {
@@ -79,7 +68,7 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
   /**
    * Dentro de una transacción de base de datos. El UPDATE condicionado a
    * PENDING bloquea la fila: si dos consultas liquidan a la vez, la segunda
-   * no encuentra nada que actualizar y no vuelve a descontar stock.
+   * no encuentra nada que actualizar y no devuelve dos veces la reserva.
    */
   private async applyPaymentResult(
     tx: Prisma.TransactionClient,
@@ -109,17 +98,59 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
       data: { status: delivery.status },
     });
 
-    if (status === TRANSACTION_STATUS.APPROVED) {
-      const { count: discounted } = await tx.product.updateMany({
-        where: { id: productId, stock: { gte: quantity } },
-        data: { stock: { decrement: quantity } },
+    if (status !== TRANSACTION_STATUS.APPROVED) {
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock: { increment: quantity } },
       });
-      if (discounted === 0) {
-        this.logger.warn(
-          `Transaction ${id} was approved without stock for product ${productId}`,
-        );
-      }
     }
+  }
+
+  /**
+   * El UPDATE de la transacción serializa los envíos duplicados; el UPDATE
+   * condicionado del producto serializa compradores de la última unidad.
+   */
+  private async claimPaymentAndReserveStock(
+    tx: Prisma.TransactionClient,
+    transaction: Transaction,
+  ): Promise<PaymentSubmissionClaim> {
+    const { id, productId, quantity, paymentSubmittedAt } =
+      transaction.toPlainObject();
+
+    const { count: claimed } = await tx.transaction.updateMany({
+      where: {
+        id,
+        status: TRANSACTION_STATUS.PENDING,
+        paymentSubmittedAt: null,
+      },
+      data: { paymentSubmittedAt },
+    });
+    if (claimed === 0) {
+      return { claimed: false, reason: 'ALREADY_SUBMITTED' };
+    }
+
+    const { count: reserved } = await tx.product.updateMany({
+      where: { id: productId, stock: { gte: quantity } },
+      data: { stock: { decrement: quantity } },
+    });
+    if (reserved === 1) {
+      return { claimed: true };
+    }
+
+    const product = await tx.product.findUnique({
+      where: { id: productId },
+      select: { stock: true },
+    });
+    await tx.transaction.update({
+      where: { id },
+      data: { paymentSubmittedAt: null },
+    });
+
+    return {
+      claimed: false,
+      reason: 'OUT_OF_STOCK',
+      available: product?.stock ?? 0,
+    };
   }
 }
 

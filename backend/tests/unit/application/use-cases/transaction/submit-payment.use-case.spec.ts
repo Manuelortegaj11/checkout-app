@@ -58,7 +58,9 @@ describe('SubmitPaymentUseCase', () => {
 
   beforeEach(() => {
     transactions.findViewById.mockReturnValue(okAsync(aView()));
-    transactions.claimPaymentSubmission.mockReturnValue(okAsync(true));
+    transactions.claimPaymentSubmission.mockReturnValue(
+      okAsync({ claimed: true }),
+    );
     transactions.savePaymentResult.mockReturnValue(okAsync(undefined));
     paymentGateway.charge.mockReturnValue(okAsync(aPaymentResult()));
   });
@@ -174,20 +176,28 @@ describe('SubmitPaymentUseCase', () => {
       expect(paymentGateway.charge).not.toHaveBeenCalled();
     });
 
-    it('falla con OUT_OF_STOCK si el stock se agotó antes de cobrar', async () => {
-      transactions.findViewById.mockReturnValue(
-        okAsync({ ...aView(), product: aProduct({ stock: 0 }) }),
+    it('falla con OUT_OF_STOCK si la reserva atómica encuentra el inventario agotado', async () => {
+      transactions.claimPaymentSubmission.mockReturnValue(
+        okAsync({
+          claimed: false,
+          reason: 'OUT_OF_STOCK',
+          available: 0,
+        }),
       );
 
       const result = await useCase.execute(input);
 
-      expect(result._unsafeUnwrapErr().code).toBe('OUT_OF_STOCK');
-      expect(transactions.claimPaymentSubmission).not.toHaveBeenCalled();
+      expect(result._unsafeUnwrapErr()).toMatchObject({
+        code: 'OUT_OF_STOCK',
+        message: expect.stringContaining('0 units available') as unknown,
+      });
       expect(paymentGateway.charge).not.toHaveBeenCalled();
     });
 
     it('falla con PAYMENT_ALREADY_SUBMITTED si otra petición se adelantó', async () => {
-      transactions.claimPaymentSubmission.mockReturnValue(okAsync(false));
+      transactions.claimPaymentSubmission.mockReturnValue(
+        okAsync({ claimed: false, reason: 'ALREADY_SUBMITTED' }),
+      );
 
       const result = await useCase.execute(input);
 

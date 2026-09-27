@@ -2,7 +2,7 @@
 
 Tienda **Templetus**: una SPA para comprar un producto y pagarlo con tarjeta de crédito a través de una pasarela de pagos externa, en su entorno Sandbox (sin dinero real).
 
-El cliente elige un producto, llena la tarjeta y la dirección de entrega, revisa el resumen y paga. El backend crea la transacción en `PENDING`, cobra en la pasarela, asigna la entrega y descuenta el inventario solo si el pago se aprueba. Si el cliente refresca la página en cualquier paso, la app retoma donde estaba sin volver a cobrar.
+El cliente elige un producto, llena la tarjeta y la dirección de entrega, revisa el resumen y paga. El backend crea la transacción en `PENDING`, reserva el inventario justo antes de cobrar, consulta el resultado en la pasarela y asigna o cancela la entrega. Una aprobación conserva la reserva; cualquier resultado final no aprobado devuelve las unidades. Si el cliente refresca la página en cualquier paso, la app retoma donde estaba sin volver a cobrar.
 
 | | |
 |---|---|
@@ -110,8 +110,8 @@ execute(input: SubmitPaymentInput): ResultAsync<TransactionOutput, AppError> {
   return this.transactions
     .findViewById(input.transactionId)
     .andThen((view) => fromNullable(view, () => transactionNotFound(input.transactionId)))
-    .andThen((view) => this.startPayment(view))    // sigue PENDING y queda stock
-    .andThen((view) => this.claimSubmission(view)) // reserva atómica: nunca se cobra dos veces
+    .andThen((view) => this.startPayment(view))    // sigue PENDING y no se envió antes
+    .andThen((view) => this.claimSubmission(view)) // reclama el envío y reserva stock atómicamente
     .andThen((view) => this.charge(view, input).map((payment) => ({ view, payment })))
     .andThen(({ view, payment }) =>
       recordPaymentResult(this.transactions, view, payment, this.clock.now()),
@@ -222,8 +222,9 @@ stateDiagram-v2
 
 - **Dinero en centavos y enteros** (`*InCents`), nunca decimales, igual que la pasarela.
 - **La transacción copia precio y tarifas** del momento de la compra: si el producto cambia de precio, el histórico no se altera. Las tarifas las calcula siempre el backend.
-- **Liquidación en una sola transacción de base de datos:** al aprobarse, la transacción pasa a `APPROVED`, el stock baja (`WHERE stock >= quantity`) y la entrega queda `ASSIGNED`. Si no se aprueba, la entrega se cancela y el stock no cambia.
-- **Nunca se cobra dos veces:** `paymentSubmittedAt` se reserva con un `UPDATE … WHERE payment_submitted_at IS NULL`; de dos peticiones simultáneas solo una llega a la pasarela.
+- **Reserva de inventario antes del cobro:** la reclamación de `paymentSubmittedAt` y el decremento condicional (`WHERE stock >= quantity`) ocurren en una sola transacción PostgreSQL. Dos compradores no pueden pagar la misma última unidad.
+- **Liquidación idempotente:** `APPROVED` conserva la reserva y asigna la entrega. `DECLINED`, `VOIDED` o `ERROR` cancelan la entrega y devuelven las unidades exactamente una vez.
+- **Nunca se cobra dos veces:** `paymentSubmittedAt` se reclama con un `UPDATE … WHERE payment_submitted_at IS NULL`; de dos peticiones simultáneas sobre la misma compra solo una llega a la pasarela.
 - **Los datos de la tarjeta no se guardan** en ninguna tabla: ni número, ni CVC, ni token.
 - Identificadores **UUID v7** y nombres en inglés: tablas en `snake_case` plural (`products`, `transactions`…) mapeadas desde Prisma. Las migraciones se generan con Prisma y los productos iniciales se cargan con un seed idempotente.
 
@@ -315,7 +316,7 @@ Además de las unitarias:
 | Nivel | Backend | Frontend |
 |---|---|---|
 | Integración | 46 pruebas: controladores con supertest y el cableado de cada módulo de NestJS, con la base de datos y la pasarela simuladas | 6 pruebas: el checkout completo con el store y la persistencia reales, también tras un refresh; solo la red se simula |
-| End-to-end | 19 pruebas contra PostgreSQL y el Sandbox reales: cobran de verdad, y al terminar restauran el stock y borran sus datos | — |
+| End-to-end | 20 pruebas contra PostgreSQL y el Sandbox reales: incluyen la reserva concurrente; las de pago cobran de verdad, y al terminar restauran el stock y borran sus datos | — |
 
 Las pruebas viven en `tests/`, fuera de `src/`, con una carpeta por nivel. Las unitarias replican la ruta del archivo que prueban.
 
@@ -326,7 +327,7 @@ Las pruebas viven en `tests/`, fuera de `src/`, con una carpeta por nivel. Las u
 - **Credenciales fuera del repositorio:** solo existe `.env.example`, con los valores de la pasarela vacíos. La API valida sus variables al arrancar y no inicia si falta alguna.
 - **Validación estricta de entrada:** DTOs con class-validator; un campo desconocido responde 400 (por ejemplo, si alguien envía `cardNumber` al backend).
 - **Cabeceras de seguridad con helmet, CORS restringido al origen del frontend y rate limiting:** 100 peticiones por minuto por IP y 10 intentos de pago por minuto.
-- **Pagos idempotentes:** reserva atómica del envío, referencia única por transacción, y el cobro nunca se reintenta automáticamente. Solo las consultas a la pasarela se reintentan ante fallos pasajeros.
+- **Pagos e inventario idempotentes:** el envío y el stock se reservan atómicamente, la referencia es única por transacción y el cobro nunca se reintenta automáticamente. Solo las consultas a la pasarela se reintentan ante fallos pasajeros.
 - **Sin `dangerouslySetInnerHTML`** en el frontend, y ESLint impide que el número de tarjeta o el CVC entren al store.
 - PostgreSQL solo escucha en `127.0.0.1`. En producción, Nginx sirve HTTPS y añade las cabeceras de seguridad de la SPA.
 
