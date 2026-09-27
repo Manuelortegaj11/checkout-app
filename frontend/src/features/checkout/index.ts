@@ -2,6 +2,7 @@
 export { PayWithCardButton } from './components/PayWithCardButton';
 export { PaymentModal } from './components/PaymentModal';
 export { ProcessingBackdrop } from './components/ProcessingBackdrop';
+export { ResultBackdrop } from './components/ResultBackdrop';
 export { SummaryBackdrop } from './components/SummaryBackdrop';
 export { CHECKOUT_STEP, MAX_QUANTITY_PER_PURCHASE } from './checkout-step';
 export type { CheckoutStep } from './checkout-step';

@@ -9,7 +9,10 @@ import {
   aTokenizedCard,
 } from '@testing/fixtures/checkout.fixture';
 import { aProduct, PRODUCT_ID } from '@testing/fixtures/product.fixture';
-import { TRANSACTION_ID } from '@testing/fixtures/transaction.fixture';
+import {
+  anApprovedTransaction,
+  TRANSACTION_ID,
+} from '@testing/fixtures/transaction.fixture';
 import { renderWithStore } from '@testing/helpers/render-with-store';
 
 describe('App', () => {
@@ -91,5 +94,27 @@ describe('App', () => {
     expect(
       screen.getByRole('dialog', { name: 'Procesando tu pago' }),
     ).toBeInTheDocument();
+  });
+
+  it('en el paso de resultado muestra el resultado del pago', async () => {
+    jest.spyOn(productsApi, 'list').mockResolvedValue([aProduct()]);
+    jest
+      .spyOn(transactionsApi, 'get')
+      .mockResolvedValue(anApprovedTransaction());
+
+    renderWithStore(<App />, {
+      preloadedState: {
+        checkout: aCheckoutState({
+          step: 'RESULT',
+          productId: PRODUCT_ID,
+          transactionId: TRANSACTION_ID,
+        }),
+      },
+    });
+
+    expect(
+      screen.getByRole('dialog', { name: 'Resultado del pago' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('¡Pago aprobado!')).toBeInTheDocument();
   });
 });

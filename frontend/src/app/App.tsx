@@ -3,6 +3,7 @@ import {
   PayWithCardButton,
   PaymentModal,
   ProcessingBackdrop,
+  ResultBackdrop,
   selectCheckoutStep,
   SummaryBackdrop,
 } from '@features/checkout';
@@ -27,6 +28,7 @@ export function App() {
       {step === CHECKOUT_STEP.PAYMENT_FORM && <PaymentModal />}
       {step === CHECKOUT_STEP.SUMMARY && <SummaryBackdrop />}
       {step === CHECKOUT_STEP.PROCESSING && <ProcessingBackdrop />}
+      {step === CHECKOUT_STEP.RESULT && <ResultBackdrop />}
     </AppLayout>
   );
 }
