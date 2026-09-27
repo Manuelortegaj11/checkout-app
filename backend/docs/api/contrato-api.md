@@ -30,10 +30,11 @@ sequenceDiagram
     API-->>SPA: 201 transacción (id, referencia, montos)
 
     SPA->>API: POST /api/transactions/:id/payment
+    API->>DB: reclamar envío + reservar stock
     API->>PG: crear transacción (llave pública + firma de integridad)
     API->>PG: consultar estado (hasta ~10 s)
     alt estado final
-        API->>DB: liquidar (estado, stock, entrega)
+        API->>DB: liquidar (estado, entrega, conservar/devolver reserva)
     end
     API-->>SPA: 200 transacción (PENDING o final)
 
@@ -232,11 +233,11 @@ stateDiagram-v2
 ```
 
 - Una transacción **solo sale de `PENDING` una vez**. Intentar resolverla de nuevo devuelve `TRANSACTION_ALREADY_RESOLVED`.
+- **Reserva** (antes de llamar a la pasarela): reclamar `paymentSubmittedAt` y ejecutar `stock = stock − quantity WHERE stock >= quantity` forman una sola transacción PostgreSQL. Si no se reservan unidades, no se cobra.
 - **Liquidación** (se ejecuta una sola vez, al llegar a un estado final), en una única transacción de base de datos:
-  - `APPROVED`: transacción `APPROVED` + `stock = stock − quantity` + entrega `ASSIGNED`.
-  - `DECLINED` / `VOIDED` / `ERROR`: transacción con ese estado + entrega `CANCELLED`. El stock no cambia.
-- **El stock solo se descuenta si el pago se aprueba.** Se comprueba al crear la transacción y otra vez justo antes de enviar el pago; el descuento final es condicional (`WHERE stock >= quantity`).
-- **Riesgo aceptado:** si dos clientes pagan la última unidad casi a la vez, el segundo podría quedar aprobado sin stock. La doble comprobación deja esa ventana en milisegundos; en un sistema real se resolvería reservando stock o anulando el pago.
+  - `APPROVED`: transacción `APPROVED` + entrega `ASSIGNED`; conserva la reserva.
+  - `DECLINED` / `VOIDED` / `ERROR`: transacción con ese estado + entrega `CANCELLED` + `stock = stock + quantity`.
+- La reclamación y la liquidación son idempotentes: dos solicitudes no pueden consumir ni devolver dos veces la misma reserva.
 
 ## 4. Convenciones de la API
 
@@ -407,7 +408,7 @@ Comportamiento:
 - **Cliente:** se identifica por su email normalizado (`Ana@Example.com` = `ana@example.com`). Si ya existe, se reutiliza y se actualizan nombre y teléfono.
 - **Entrega:** se crea junto con la transacción, en la misma escritura atómica, en estado `PENDING_PAYMENT`. Los opcionales vacíos se guardan como `null`.
 - **Textos:** se recortan los espacios de los extremos antes de validar, así que `"   "` no cuenta como un nombre.
-- **Stock:** crear la transacción no descuenta unidades. El stock solo cambia al aprobarse el pago.
+- **Stock:** crear la transacción no descuenta unidades. Se reserva justo antes de llamar a la pasarela y se devuelve si el resultado final no es aprobado.
 
 | Error | HTTP | Cuándo |
 |-------|------|--------|
@@ -441,8 +442,8 @@ Envía el cobro a la pasarela. La respuesta puede traer ya el estado final o seg
 
 Comportamiento:
 
-- **Orden de comprobación:** formato (400) → la transacción existe (404) → sigue `PENDING` y sin cobro enviado (409) → queda stock (409) → reserva atómica del envío (409 si otra petición se adelantó) → cobro en la pasarela.
-- **Nunca se cobra dos veces:** la reserva es un `UPDATE … WHERE payment_submitted_at IS NULL`; de dos peticiones simultáneas solo una pasa.
+- **Orden de comprobación:** formato (400) → la transacción existe (404) → sigue `PENDING` y sin cobro enviado (409) → reclamar el envío y reservar stock atómicamente (409 si otra petición se adelantó o no quedan unidades) → cobro en la pasarela.
+- **Nunca se cobra dos veces ni se sobrevende:** la reclamación (`UPDATE … WHERE payment_submitted_at IS NULL`) y el decremento (`UPDATE … WHERE stock >= quantity`) comparten una transacción PostgreSQL. Entre dos envíos de la misma compra o dos compras de la última unidad, solo uno pasa.
 - **Espera acotada:** tras crear el cobro, el backend consulta su estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` (10 s). En el Sandbox, una tarjeta aprobada tarda ~1 s y una rechazada ~2 s. Si no hay resultado a tiempo, responde `PENDING` y la SPA sigue con `GET`.
 - **Los tokens de aceptación son de un solo uso:** la pasarela los consume en el primer intento de cobro, aunque falle. Por eso cada cobro usa los de un `GET /api/checkout/config` reciente.
 - **Solo tokens:** el cuerpo no admite otros campos. Si se envía `cardNumber` o similar, responde 400: el número de la tarjeta nunca llega al backend.
@@ -454,7 +455,7 @@ Comportamiento:
 | `TRANSACTION_NOT_FOUND` | 404 | No existe |
 | `TRANSACTION_ALREADY_RESOLVED` | 409 | Ya está en un estado final |
 | `PAYMENT_ALREADY_SUBMITTED` | 409 | El pago ya se envió; consultar con `GET` |
-| `OUT_OF_STOCK` | 409 | El stock se agotó antes de cobrar |
+| `OUT_OF_STOCK` | 409 | La reserva atómica no encontró suficientes unidades |
 | `PAYMENT_GATEWAY_REJECTED` | 502 | La pasarela rechazó la petición (token inválido o vencido…). La transacción queda en `ERROR` |
 | `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | La pasarela no responde. La transacción queda en `ERROR` |
 
@@ -554,7 +555,7 @@ El frontend decide qué mostrar según el `code`, nunca según el `message`.
 - **Timeout:** cada petición a la pasarela se corta a los `PAYMENT_GATEWAY_TIMEOUT_MS` (10 s por defecto).
 - **Reintentos solo en las consultas:** los `GET` (contratos y estado del cobro) son idempotentes, así que se reintentan ante un fallo pasajero: error de red, 5xx o 429. Hasta `PAYMENT_GATEWAY_GET_RETRIES` veces (2 por defecto), esperando `PAYMENT_GATEWAY_RETRY_BACKOFF_MS` (250 ms) y el doble en cada reintento. Todos los intentos comparten el mismo timeout: reintentar nunca alarga la espera total. Un 4xx no se reintenta porque la respuesta no cambiará. **El `POST` del cobro nunca se reintenta:** no es idempotente y un segundo envío podría cobrar dos veces.
 - **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404. El secreto de integridad tiene el caso inverso: dos `I` mayúsculas que en la imagen parecen `l`; con las `l` la pasarela responde "La firma es inválida".
-- **Riesgos conocidos:** si la pasarela no responde **al crear** el cobro, la compra queda en `ERROR`; si en realidad sí lo creó, no se concilia automáticamente (se haría con webhooks, que no se usan porque la cuenta del Sandbox es compartida). Si se aprueba un cobro cuando ya no queda stock (dos compras de la última unidad a la vez), se registra `APPROVED` y una advertencia en el log.
+- **Riesgo conocido:** si la pasarela no responde **al crear** el cobro, la compra queda en `ERROR`; si en realidad sí lo creó, no se concilia automáticamente (se haría con webhooks, que no se usan porque la cuenta del Sandbox es compartida).
 
 ### Tarjetas de prueba (Sandbox)
 
@@ -603,7 +604,7 @@ En el repositorio solo existen los `.env.example`, con los valores vacíos.
 | `GetTransaction` | `GET /api/transactions/:id` | `TransactionRepository`, `PaymentGateway`, `Clock` |
 
 - `SubmitPayment` y `GetTransaction` comparten la regla de liquidación (`recordPaymentResult`).
-- `TransactionRepository.findViewById` carga la transacción con su producto y su cliente en una sola consulta; por eso `SubmitPayment` no necesita el repositorio de productos para comprobar el stock.
+- `TransactionRepository.findViewById` carga la transacción con su producto y su cliente en una sola consulta; la reserva definitiva del stock ocurre dentro de `claimPaymentSubmission`.
 - Crear la transacción y su entrega es atómico: `TransactionRepository.create` guarda ambas en una sola transacción de base de datos. El módulo de entregas aporta su entidad, sus reglas de estado y su mapper.
-- La liquidación (estado + stock + entrega) es **un solo método del repositorio** (`TransactionRepository.settle`), que el adapter de Prisma ejecuta dentro de `prisma.$transaction`.
+- La reclamación con reserva (`claimPaymentSubmission`) y la liquidación (`savePaymentResult`) son métodos del repositorio que el adapter de Prisma ejecuta dentro de `prisma.$transaction`.
 - `CheckoutSettings` es un port que entrega las tarifas desde la configuración, para que el dominio no lea `process.env`.

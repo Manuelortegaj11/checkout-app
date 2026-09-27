@@ -71,7 +71,7 @@ README.md   Único README de la entrega
 - **Agregados:** `Product`, `Customer` y `Transaction`. `Delivery` vive dentro de `Transaction` (se crean juntas y la entrega solo cambia al liquidar). Entre agregados se referencia por id.
 - **Ids y hora por ports:** los ids (UUID v7) salen de `IdGeneratorPort` y la hora de `ClockPort`. El lint prohíbe `new Date()`, `Date.now()`, `Math.random()` y `randomUUID()` en `shared`, `domain` y `application`.
 - **Parse, don't validate:** los value objects (`Quantity`, `Email`) validan al crearse; un método que recibe un value object no vuelve a validar ni devuelve `Result` si no puede fallar.
-- La transacción se crea en `PENDING`, luego se llama a la pasarela y se actualiza con el resultado. El inventario solo se descuenta si el pago queda aprobado.
+- La transacción se crea en `PENDING`. Justo antes de llamar a la pasarela, `claimPaymentSubmission` reclama el envío y reserva el inventario en una sola transacción PostgreSQL. `APPROVED` conserva la reserva; `DECLINED`, `VOIDED` o `ERROR` la devuelven exactamente una vez.
 - La base de datos se puebla con un seed de productos ficticios; no hay endpoints para crear productos.
 - Documentar la API con Swagger (`@nestjs/swagger`). Seguridad: helmet, CORS restringido, rate limiting.
 - **NestJS 11, no 12:** NestJS 12 solo se distribuye como ESM y usa Vitest; el enunciado exige Jest, que con ESM sigue siendo experimental. No actualizar a 12.
