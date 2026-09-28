@@ -6,8 +6,8 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 
 | | |
 |---|---|
-| **Aplicación** | _Se publica en el despliegue_ |
-| **Swagger** | _Se publica en el despliegue_. En local: `http://localhost:3001/api/docs` |
+| **Aplicación** | [https://templetus.com](https://templetus.com) |
+| **Swagger** | [https://templetus.com/api/docs](https://templetus.com/api/docs) |
 | **Cobertura** | Backend **97,2 %** · Frontend **100 %** de líneas, solo con pruebas unitarias. [Ver reporte](#cobertura-de-pruebas) |
 
 ## Contenido
@@ -382,7 +382,15 @@ La SPA no necesita variables de entorno: llama a `/api` en su mismo origen (Vite
 
 ## Despliegue
 
-_Esta sección se completa con el despliegue._ La arquitectura prevista es un servidor con Nginx, que sirve la SPA y reenvía `/api` a la API de NestJS gestionada con PM2, PostgreSQL en Docker y HTTPS con Certbot.
+La aplicación está desplegada en un VPS con Ubuntu 24.04. Nginx sirve la SPA y reenvía `/api` a NestJS, administrado con PM2; PostgreSQL 17 corre en Docker y solo escucha en la interfaz local. El dominio utiliza HTTPS con certificados de Let's Encrypt, redirección automática desde HTTP y cabeceras de seguridad.
+
+| Recurso | URL pública |
+|---|---|
+| Aplicación | [https://templetus.com](https://templetus.com) |
+| Swagger | [https://templetus.com/api/docs](https://templetus.com/api/docs) |
+| Healthcheck | [https://templetus.com/api/health](https://templetus.com/api/health) |
+
+La instalación, la arquitectura, la operación, las actualizaciones y las verificaciones de seguridad están documentadas en la [guía completa de despliegue](<docs/Despliegue de Checkout App.md>).
 
 ## Flujo de trabajo y uso de IA
 
