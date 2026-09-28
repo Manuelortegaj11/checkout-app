@@ -7,7 +7,6 @@ interface RenderWithStoreOptions extends Omit<RenderOptions, 'wrapper'> {
   preloadedState?: Partial<RootState>;
 }
 
-/** Renderiza con un store real y nuevo en cada prueba, opcionalmente con un estado inicial. */
 export const renderWithStore = (
   ui: ReactElement,
   { preloadedState, ...options }: RenderWithStoreOptions = {},

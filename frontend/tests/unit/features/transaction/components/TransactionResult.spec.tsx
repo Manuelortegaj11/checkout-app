@@ -7,7 +7,6 @@ import {
   anApprovedTransaction,
 } from '@testing/fixtures/transaction.fixture';
 
-// Intl separa símbolos y horas con espacios especiales: se normalizan para comparar.
 const textOf = (element: HTMLElement) =>
   element.textContent?.replace(/\s/g, ' ') ?? '';
 

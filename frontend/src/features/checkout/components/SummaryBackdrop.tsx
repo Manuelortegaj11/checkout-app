@@ -36,12 +36,6 @@ const NOT_ACCEPTED: Acceptance = {
   personalDataAuth: false,
 };
 
-/**
- * Pantalla 3: resumen del pago en un backdrop sobre el catálogo. Muestra el
- * desglose (producto, tarifa base, envío y total), pide aceptar los dos
- * contratos de la pasarela y lanza el pago definitivo. Las casillas no se
- * guardan: cada intento de pago se acepta de nuevo.
- */
 export function SummaryBackdrop() {
   const dispatch = useAppDispatch();
   const product = useAppSelector(selectCheckoutProduct);
@@ -57,8 +51,6 @@ export function SummaryBackdrop() {
   const orderErrorCode = useAppSelector(selectOrderErrorCode);
   const [accepted, setAccepted] = useState(NOT_ACCEPTED);
 
-  // Tras un refresh o un intento fallido no hay configuración: se pide una
-  // nueva, porque los tokens de aceptación son de un solo uso.
   useEffect(() => {
     if (configStatus === 'idle') {
       void dispatch(fetchCheckoutConfig());
@@ -122,7 +114,6 @@ export function SummaryBackdrop() {
           </Notice>
         )}
 
-        {/* Tras un refresh, el inventario tarda un instante en llegar. */}
         {product && card ? (
           <OrderOverview
             product={product}

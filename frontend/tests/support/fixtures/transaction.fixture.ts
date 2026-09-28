@@ -3,11 +3,6 @@ import { PRODUCT_ID } from './product.fixture';
 
 export const TRANSACTION_ID = '01920000-0000-7000-8000-0000000000a1';
 
-/**
- * Transacción recién creada: 1 unidad de los audífonos del fixture de
- * productos, con las tarifas del fixture del checkout. Por defecto PENDING y
- * sin cobro enviado; cada prueba cambia solo lo que le importa.
- */
 export const aTransaction = (
   overrides: Partial<Transaction> = {},
 ): Transaction => ({
@@ -43,7 +38,6 @@ export const aTransaction = (
   ...overrides,
 });
 
-/** La misma transacción, ya cobrada y aprobada: entrega asignada. */
 export const anApprovedTransaction = (
   overrides: Partial<Transaction> = {},
 ): Transaction =>
@@ -55,7 +49,6 @@ export const anApprovedTransaction = (
     ...overrides,
   });
 
-/** La misma transacción, cobrada y rechazada por la pasarela: entrega cancelada. */
 export const aDeclinedTransaction = (
   overrides: Partial<Transaction> = {},
 ): Transaction =>

@@ -23,7 +23,6 @@ import { PrismaService } from '../prisma.service';
 export class TransactionPrismaRepository implements TransactionRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** La escritura anidada guarda transacción y entrega de forma atómica. */
   create(transaction: Transaction): ResultAsync<void, AppError> {
     return ResultAsync.fromPromise(
       this.prisma.transaction.create({
@@ -44,7 +43,6 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
     ).andThen((row) => (row ? toTransactionView(row) : ok(null)));
   }
 
-  /** Reclama el envío y reserva el stock dentro de la misma transacción. */
   claimPaymentSubmission(
     transaction: Transaction,
   ): ResultAsync<PaymentSubmissionClaim, AppError> {
@@ -65,11 +63,6 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
     );
   }
 
-  /**
-   * Dentro de una transacción de base de datos. El UPDATE condicionado a
-   * PENDING bloquea la fila: si dos consultas liquidan a la vez, la segunda
-   * no encuentra nada que actualizar y no devuelve dos veces la reserva.
-   */
   private async applyPaymentResult(
     tx: Prisma.TransactionClient,
     transaction: Transaction,
@@ -106,10 +99,6 @@ export class TransactionPrismaRepository implements TransactionRepositoryPort {
     }
   }
 
-  /**
-   * El UPDATE de la transacción serializa los envíos duplicados; el UPDATE
-   * condicionado del producto serializa compradores de la última unidad.
-   */
   private async claimPaymentAndReserveStock(
     tx: Prisma.TransactionClient,
     transaction: Transaction,

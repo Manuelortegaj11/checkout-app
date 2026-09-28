@@ -11,7 +11,6 @@ import {
   toSubmitPaymentRequest,
 } from './order-request';
 
-/** Pide la configuración del checkout. No lanza otra petición si ya hay una en curso. */
 export const fetchCheckoutConfig = createAppAsyncThunk(
   'checkout/fetchConfig',
   async (_: void, { rejectWithValue }) => {
@@ -27,17 +26,6 @@ export const fetchCheckoutConfig = createAppAsyncThunk(
   },
 );
 
-/**
- * Pago definitivo (pantalla 4 del enunciado): abre la transacción en PENDING
- * y la cobra con la tarjeta tokenizada y los contratos aceptados. Devuelve la
- * transacción, final o todavía PENDING.
- *
- * - Si ya existe una transacción de un intento anterior, la reutiliza: el
- *   backend impide cobrarla dos veces.
- * - Si el cobro falla o no hay respuesta, pregunta al backend si llegó a
- *   enviarse: si se envió, el resultado se sigue consultando; si no, rechaza
- *   con el code del fallo y el cliente puede reintentar.
- */
 export const placeOrder = createAppAsyncThunk(
   'checkout/placeOrder',
   async (_: void, { getState, dispatch, rejectWithValue }) => {

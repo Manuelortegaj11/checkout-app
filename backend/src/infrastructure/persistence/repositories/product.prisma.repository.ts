@@ -17,7 +17,6 @@ export class ProductPrismaRepository implements ProductRepositoryPort {
   findAll(): ResultAsync<Product[], AppError> {
     return ResultAsync.fromPromise(
       this.prisma.product.findMany({
-        // El id desempata productos creados en el mismo instante (seed).
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
       databaseError,

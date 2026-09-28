@@ -1,6 +1,5 @@
 import { Skeleton } from '@shared/ui/Skeleton';
 
-/** Hueco con la misma forma que ProductCard: la página no salta al llegar los datos. */
 export function ProductCardSkeleton() {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-surface border border-line-subtle bg-surface">

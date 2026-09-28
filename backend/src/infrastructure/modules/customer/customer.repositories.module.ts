@@ -3,7 +3,6 @@ import { CUSTOMER_REPOSITORY_PROVIDER } from '@infrastructure/persistence/reposi
 
 const providers = [CUSTOMER_REPOSITORY_PROVIDER];
 
-/** Registro de clientes. No expone endpoints: se usa desde las transacciones. */
 @Module({
   providers,
   exports: providers,

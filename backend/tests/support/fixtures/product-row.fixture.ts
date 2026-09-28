@@ -1,7 +1,6 @@
 import type { Product as ProductRow } from '@infrastructure/persistence/generated/prisma/client';
 import { aProductProps } from './product.fixture';
 
-/** Fila de la tabla `products` tal como la devuelve Prisma. */
 export const aProductRow = (
   overrides: Partial<ProductRow> = {},
 ): ProductRow => ({

@@ -57,7 +57,6 @@ describe('SubmitPaymentUseCase', () => {
     mockClock(FINALIZED_AT),
   );
 
-  /** Transacción con la que se llamó a `savePaymentResult`. */
   const saved = (): Transaction =>
     transactions.savePaymentResult.mock.calls[0][0];
 

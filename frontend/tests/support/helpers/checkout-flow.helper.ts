@@ -1,10 +1,8 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-/** Usuario sin esperas entre teclas: los flujos completos tienen muchos pasos. */
 export const user = () => userEvent.setup({ delay: null });
 
-/** Rellena campos pegando cada valor: un onChange por campo, como al autocompletar. */
 export const fill = async (values: Record<string, string>) => {
   const typist = user();
   for (const [label, value] of Object.entries(values)) {
@@ -29,7 +27,6 @@ export const CARD = {
   CVC: '123',
 };
 
-/** Pulsa "Pagar con tarjeta de crédito" en la tarjeta del producto y espera el formulario. */
 export const openPaymentForm = async (productName: string) => {
   const card = await screen.findByRole('article', { name: productName });
   await user().click(
@@ -38,7 +35,6 @@ export const openPaymentForm = async (productName: string) => {
   return screen.findByRole('dialog', { name: 'Pago con tarjeta' });
 };
 
-/** Del formulario al resumen: rellena contacto, dirección y tarjeta y continúa. */
 export const submitPaymentForm = async () => {
   await fill({ ...CONTACT_AND_ADDRESS, ...CARD });
   await user().click(
@@ -47,10 +43,6 @@ export const submitPaymentForm = async () => {
   return screen.findByRole('dialog', { name: 'Resumen del pago' });
 };
 
-/**
- * En el resumen: acepta los dos contratos y paga. Busca dentro del backdrop:
- * detrás siguen los botones "Pagar con tarjeta de crédito" del catálogo.
- */
 export const acceptAndPay = async () => {
   const typist = user();
   const summary = within(

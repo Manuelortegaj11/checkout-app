@@ -15,7 +15,6 @@ export const transactionNotFound = (transactionId: string): AppError =>
     `Transaction ${transactionId} not found`,
   );
 
-/** Ya llegó a un estado final: no admite otro pago ni otro resultado. */
 export const transactionAlreadyResolved = (transactionId: string): AppError =>
   appError(
     'CONFLICT',
@@ -23,7 +22,6 @@ export const transactionAlreadyResolved = (transactionId: string): AppError =>
     `Transaction ${transactionId} is already resolved`,
   );
 
-/** El cobro ya se envió a la pasarela: reenviarlo podría cobrar dos veces. */
 export const paymentAlreadySubmitted = (transactionId: string): AppError =>
   appError(
     'CONFLICT',

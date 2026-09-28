@@ -6,18 +6,13 @@ export interface TextFieldProps extends Omit<
   'id'
 > {
   label: string;
-  /** Mensaje de error; también marca el campo como inválido. */
+
   error?: string;
   hint?: string;
-  /** Contenido a la derecha del campo, como el logo de la marca de la tarjeta. */
+
   adornment?: ReactNode;
 }
 
-/**
- * Campo de texto con etiqueta, ayuda y error anunciados por el lector de
- * pantalla (aria-describedby). En móvil el texto mide 16 px para que iOS no
- * haga zoom al enfocarlo.
- */
 export function TextField({
   label,
   error,
@@ -29,7 +24,6 @@ export function TextField({
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
-  // El error reemplaza a la ayuda: solo se describe lo que está en pantalla.
   const showHint = Boolean(hint) && !error;
   const hasAdornment = adornment !== undefined && adornment !== null;
   const describedBy = cx(showHint && hintId, error && errorId) || undefined;

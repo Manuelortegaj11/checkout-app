@@ -16,13 +16,6 @@ import {
 import { paymentInterrupted } from '../checkout.slice';
 import { PaymentProgress } from './PaymentProgress';
 
-/**
- * Pantalla 4: el pago en curso. No se puede cerrar: un cobro enviado no se
- * abandona. Mientras el pago se envía no hace nada más; después consulta su
- * estado hasta tener un resultado. Tras un refresh retoma la consulta con el
- * id guardado, sin volver a cobrar; si la transacción ni siquiera se creó,
- * vuelve al resumen.
- */
 export function ProcessingBackdrop() {
   const dispatch = useAppDispatch();
   const transactionId = useAppSelector(selectCheckoutTransactionId);

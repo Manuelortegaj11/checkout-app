@@ -2,7 +2,6 @@ import { CreditCard } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { CardBrand } from '@shared/lib/card/card-brand';
 
-// Trazos de Simple Icons (licencia CC0), recortados a la altura de cada logo.
 function VisaLogo() {
   return (
     <svg viewBox="0 8 24 8" aria-hidden="true" className="h-3 fill-visa">
@@ -11,7 +10,6 @@ function VisaLogo() {
   );
 }
 
-/** Los dos círculos con sus colores oficiales y la intersección en naranja. */
 function MastercardLogo() {
   return (
     <svg viewBox="0 4 24 16" aria-hidden="true" className="h-4">
@@ -37,11 +35,9 @@ const BRANDS: Record<CardBrand, { label: string; logo: ComponentType }> = {
 };
 
 export interface CardBrandIconProps {
-  /** Marca detectada; `null` muestra un ícono genérico de tarjeta. */
   brand: CardBrand | null;
 }
 
-/** Logo de la marca de la tarjeta, sobre una placa blanca para verse igual en tema claro y oscuro. */
 export function CardBrandIcon({ brand }: CardBrandIconProps) {
   if (brand === null) {
     return <CreditCard aria-hidden="true" className="size-5 text-ink-subtle" />;

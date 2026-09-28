@@ -3,7 +3,6 @@ import { PRODUCT_REPOSITORY_PROVIDER } from '@infrastructure/persistence/reposit
 
 const providers = [PRODUCT_REPOSITORY_PROVIDER];
 
-/** Repositorios del inventario. Otros contextos lo importan para leer productos. */
 @Module({
   providers,
   exports: providers,

@@ -32,7 +32,6 @@ const aCard = (overrides: Partial<CardForm> = {}): CardForm => ({
   ...overrides,
 });
 
-// 15 de septiembre de 2026.
 const NOW = new Date(2026, 8, 15);
 
 describe('hasErrors', () => {

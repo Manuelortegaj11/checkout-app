@@ -5,7 +5,6 @@ import { Product, type ProductProps } from '@domain/entities/product.entity';
 export const PRODUCT_ID = '01920000-0000-7000-8000-000000000001';
 export const MISSING_PRODUCT_ID = '01920000-0000-7000-8000-0000000000ff';
 
-/** Datos válidos de un producto; cada test cambia solo lo que le importa. */
 export const aProductProps = (
   overrides: Partial<ProductProps> = {},
 ): ProductProps => ({
@@ -21,7 +20,6 @@ export const aProductProps = (
 export const aProduct = (overrides: Partial<ProductProps> = {}): Product =>
   Product.reconstitute(aProductProps(overrides));
 
-/** El producto del fixture tal como lo devuelven los casos de uso. */
 export const aProductOutput = (
   overrides: Partial<ProductProps> = {},
 ): ProductOutput => toProductOutput(aProduct(overrides));

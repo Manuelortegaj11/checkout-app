@@ -28,14 +28,14 @@ import {
 
 export interface TransactionProps {
   readonly id: string;
-  /** Identifica la compra ante la pasarela de pagos. */
+
   readonly reference: string;
   readonly status: TransactionStatus;
   readonly productId: string;
   readonly customerId: string;
   readonly quantity: number;
   readonly currency: Currency;
-  /** Precios y tarifas copiados al comprar: el histórico no cambia si cambian después. */
+
   readonly amounts: TransactionAmounts;
   readonly delivery: DeliveryProps;
   readonly gatewayTransactionId: string | null;
@@ -45,7 +45,6 @@ export interface TransactionProps {
   readonly createdAt: Date;
 }
 
-/** Datos para abrir una compra: ya validados (Quantity) y con el stock comprobado. */
 export interface NewTransaction {
   readonly id: string;
   readonly productId: string;
@@ -57,11 +56,10 @@ export interface NewTransaction {
   readonly createdAt: Date;
 }
 
-/** Lo que respondió la pasarela sobre un cobro. */
 export interface PaymentResult {
   readonly gatewayTransactionId: string;
   readonly status: TransactionStatus;
-  /** Motivo de un rechazo o error, si la pasarela lo informa. */
+
   readonly statusMessage: string | null;
 }
 
@@ -69,22 +67,12 @@ type TransactionState = Omit<TransactionProps, 'delivery'> & {
   readonly delivery: Delivery;
 };
 
-/** Única porque deriva del id: `TX-0192…` (sin guiones, en mayúsculas). */
 const referenceFor = (transactionId: string): string =>
   `TX-${transactionId.replace(/-/g, '').toUpperCase()}`;
 
-/**
- * Compra de un producto (aggregate root). Contiene su entrega y referencia
- * al producto y al cliente por su id, como corresponde entre agregados.
- */
 export class Transaction {
   private constructor(private readonly state: TransactionState) {}
 
-  /**
-   * Abre la compra en PENDING con su entrega a la espera del pago. Los montos
-   * se calculan aquí, nunca llegan desde fuera. No puede fallar: la cantidad
-   * ya es un Quantity válido.
-   */
   static create(input: NewTransaction): Transaction {
     return new Transaction({
       id: input.id,
@@ -108,7 +96,6 @@ export class Transaction {
     });
   }
 
-  /** Reconstruye una transacción ya persistida, con su entrega. */
   static reconstitute(props: TransactionProps): Transaction {
     return new Transaction({
       ...props,
@@ -129,20 +116,12 @@ export class Transaction {
     return this.state.gatewayTransactionId;
   }
 
-  /**
-   * Id en la pasarela del cobro cuyo resultado todavía no se conoce, o `null`
-   * si no hay ninguno: aún no se envió o la compra ya tiene resultado.
-   */
   pendingPaymentId(): string | null {
     return this.state.status === TRANSACTION_STATUS.PENDING
       ? this.state.gatewayTransactionId
       : null;
   }
 
-  /**
-   * Marca el inicio del cobro. Solo una vez y solo mientras siga PENDING:
-   * reenviar un cobro a la pasarela podría cobrar dos veces.
-   */
   startPayment(submittedAt: Date): Result<Transaction, AppError> {
     return this.ensurePending().andThen(() =>
       this.state.paymentSubmittedAt === null
@@ -151,10 +130,6 @@ export class Transaction {
     );
   }
 
-  /**
-   * Registra la respuesta de la pasarela. Si el estado ya es final, liquida la
-   * compra: guarda el resultado y asigna o cancela la entrega.
-   */
   applyPaymentResult(
     result: PaymentResult,
     at: Date,
@@ -168,14 +143,12 @@ export class Transaction {
     });
   }
 
-  /** La pasarela no aceptó o no recibió el cobro: la compra termina en ERROR. */
   failPayment(reason: string, at: Date): Result<Transaction, AppError> {
     return this.ensurePending().map(() =>
       this.settle(TRANSACTION_STATUS.ERROR, reason, at),
     );
   }
 
-  /** Copia de los datos: modificarla no altera la entidad. */
   toPlainObject(): TransactionProps {
     return {
       ...this.state,
@@ -184,14 +157,12 @@ export class Transaction {
     };
   }
 
-  /** Una transacción solo sale de PENDING una vez. */
   private ensurePending(): Result<void, AppError> {
     return this.state.status === TRANSACTION_STATUS.PENDING
       ? ok(undefined)
       : err(transactionAlreadyResolved(this.state.id));
   }
 
-  /** Estado final: guarda el resultado y liquida la entrega. */
   private settle(
     status: FinalTransactionStatus,
     statusMessage: string | null,

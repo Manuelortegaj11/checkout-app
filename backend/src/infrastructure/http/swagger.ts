@@ -3,7 +3,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export const SWAGGER_PATH = 'api/docs';
 
-/** Documentación interactiva en /api/docs y especificación OpenAPI en /api/docs-json. */
 export const setupSwagger = (app: INestApplication): void => {
   const config = new DocumentBuilder()
     .setTitle('Checkout API')

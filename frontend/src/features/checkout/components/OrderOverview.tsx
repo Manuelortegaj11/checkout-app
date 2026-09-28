@@ -14,7 +14,6 @@ export interface OrderOverviewProps {
   address: AddressForm;
 }
 
-/** Qué se compra, con qué tarjeta y a dónde llega. */
 export function OrderOverview({
   product,
   quantity,

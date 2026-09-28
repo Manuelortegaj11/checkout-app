@@ -9,7 +9,6 @@ const SECRET = 'test_integrity_0123456789abcdef';
 
 describe('integritySignature', () => {
   it('es el SHA-256 de referencia + monto + moneda + secreto', () => {
-    // Vector calculado aparte con `sha256sum`.
     expect(integritySignature(payment, SECRET)).toBe(
       'b8214e49d7069222339f4940a3807161230a4a24c8bf11379eed276072125dcf',
     );

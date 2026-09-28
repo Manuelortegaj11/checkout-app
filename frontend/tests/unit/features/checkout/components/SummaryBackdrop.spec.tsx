@@ -69,7 +69,6 @@ describe('SummaryBackdrop', () => {
     renderSummary({ checkout: { quantity: 2 } });
 
     const dialog = screen.getByRole('dialog', { name: 'Resumen del pago' });
-    // Intl separa el símbolo con un espacio duro: se normaliza para comparar.
     const texts = (role: 'term' | 'definition') =>
       within(dialog)
         .getAllByRole(role)

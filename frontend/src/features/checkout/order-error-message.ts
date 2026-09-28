@@ -1,13 +1,11 @@
 import { isConnectionError } from '@shared/api/api-error';
 import { PAYMENT_INTERRUPTED } from './checkout.slice';
 
-/** Fallos tras los que reintentar no sirve: hay que volver a la tienda. */
 const UNRECOVERABLE = new Set(['OUT_OF_STOCK', 'PRODUCT_NOT_FOUND']);
 
 export const isUnrecoverableOrderError = (code: string | null): boolean =>
   code !== null && UNRECOVERABLE.has(code);
 
-/** Qué decirle al cliente cuando el pago no se completó, según el `code`. */
 export const orderErrorMessage = (code: string | null): string => {
   switch (code) {
     case 'OUT_OF_STOCK':

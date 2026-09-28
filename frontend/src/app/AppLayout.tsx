@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 
-/** Marco común de las pantallas: marca, contenido y nota del entorno de pruebas. */
 export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">

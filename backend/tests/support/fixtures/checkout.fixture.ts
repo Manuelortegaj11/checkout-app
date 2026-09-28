@@ -22,14 +22,12 @@ export const anAcceptanceContracts = (): AcceptanceContracts => ({
   },
 });
 
-/** Datos públicos de la pasarela para tokenizar la tarjeta en el navegador. */
 export const aPaymentGatewayPublicSettings =
   (): PaymentGatewayPublicSettings => ({
     baseUrl: 'https://gateway.test/v1',
     publicKey: 'pub_test_abc123',
   });
 
-/** Tarifas y contratos tal como los devuelve el caso de uso de configuración. */
 export const aCheckoutConfigOutput = (): CheckoutConfigOutput => ({
   currency: STORE_CURRENCY,
   ...CHECKOUT_FEES,

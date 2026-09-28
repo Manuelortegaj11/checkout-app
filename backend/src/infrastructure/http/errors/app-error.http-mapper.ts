@@ -13,10 +13,6 @@ const STATUS_BY_TYPE: Record<AppErrorType, HttpStatus> = {
 
 const logger = new Logger('AppError');
 
-/**
- * Traduce un AppError a HTTP. Solo `code` y `message` llegan al cliente;
- * la causa interna de los errores 5xx se registra en el log.
- */
 export const toHttpException = (error: AppError): HttpException => {
   const status = STATUS_BY_TYPE[error.type];
 
@@ -30,10 +26,6 @@ export const toHttpException = (error: AppError): HttpException => {
   );
 };
 
-/**
- * Salida del riel en los controladores: devuelve el valor si es `ok`
- * o lanza la HttpException correspondiente si es `err`.
- */
 export const unwrapOrThrowHttp = async <T>(
   result: Result<T, AppError> | PromiseLike<Result<T, AppError>>,
 ): Promise<T> => {

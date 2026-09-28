@@ -1,6 +1,5 @@
 import { ApiError, CLIENT_ERROR_CODE } from './api-error';
 
-/** La API vive en el mismo origen que la SPA: proxy de Vite en local y Nginx en producción. */
 const API_PREFIX = '/api';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -11,7 +10,6 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
-/** URL de un endpoint de la API: `apiUrl('/products')` → `/api/products`. */
 export const apiUrl = (path: string): string => `${API_PREFIX}${path}`;
 
 const failure = (url: string, signal: AbortSignal): ApiError =>
@@ -27,7 +25,6 @@ const parseJson = (text: string): unknown => {
   }
 };
 
-/** Cuerpo de error del contrato: `{ code, message }`. */
 const isApiErrorBody = (
   body: unknown,
 ): body is { code: string; message: string } =>
@@ -36,12 +33,6 @@ const isApiErrorBody = (
   typeof (body as { code?: unknown }).code === 'string' &&
   typeof (body as { message?: unknown }).message === 'string';
 
-/**
- * Único punto de la SPA que hace peticiones HTTP. Envía y recibe JSON, corta
- * la petición si tarda más de `timeoutMs` y convierte cualquier fallo en un
- * `ApiError`. El tipo de la respuesta lo fija cada servicio de `shared/api`
- * según el contrato de la API.
- */
 export async function requestJson<T>(
   url: string,
   {

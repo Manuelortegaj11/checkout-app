@@ -4,13 +4,6 @@ import request from 'supertest';
 import { AppModule } from '@infrastructure/modules/app.module';
 import { configureApp } from '@infrastructure/http/configure-app';
 
-/**
- * Inventario contra PostgreSQL real. Requiere la base con migraciones y seed:
- * `docker compose up -d` → `pnpm db:deploy` → `pnpm db:seed`.
- *
- * Solo se comprueban datos que las compras no cambian (nombre, precio, forma),
- * nunca el stock de un producto que se puede vender.
- */
 const SEED_HEADPHONES_ID = '01920000-0000-7000-8000-000000000001';
 const SEED_OUT_OF_STOCK_ID = '01920000-0000-7000-8000-000000000006';
 const UNKNOWN_ID = '01920000-0000-7000-8000-0000000000ff';

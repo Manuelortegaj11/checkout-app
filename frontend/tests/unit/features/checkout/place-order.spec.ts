@@ -16,7 +16,6 @@ import {
   TRANSACTION_ID,
 } from '@testing/fixtures/transaction.fixture';
 
-/** Checkout en el resumen: tarjeta tokenizada y configuración cargada. */
 const storeInSummary = (checkout: Partial<CheckoutState> = {}) =>
   makeStore({
     checkout: aCheckoutState({

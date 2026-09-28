@@ -1,4 +1,3 @@
-// La conversión implícita de tipos lee la metadata de los decoradores.
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import {
@@ -25,7 +24,6 @@ export class EnvironmentVariables {
   @IsUrl({ require_tld: false, require_protocol: true })
   CORS_ORIGIN: string = 'http://localhost:3000';
 
-  /** Obligatoria: sin base de datos la API no arranca. */
   @IsUrl({
     require_tld: false,
     require_protocol: true,
@@ -33,72 +31,54 @@ export class EnvironmentVariables {
   })
   DATABASE_URL!: string;
 
-  /** URL base de la API de la pasarela de pagos (Sandbox en esta prueba). */
   @IsUrl({ require_protocol: true, protocols: ['https'] })
   PAYMENT_GATEWAY_BASE_URL!: string;
 
-  /** Llave pública del comercio: identifica la tienda ante la pasarela. */
   @Matches(/^pub_\w+$/, {
     message: 'PAYMENT_GATEWAY_PUBLIC_KEY must start with pub_',
   })
   PAYMENT_GATEWAY_PUBLIC_KEY!: string;
 
-  /** Secreto de integridad: firma cada cobro. Solo lo conoce el backend. */
   @Matches(/^\S{16,}$/, {
     message:
       'PAYMENT_GATEWAY_INTEGRITY_SECRET must be at least 16 characters without spaces',
   })
   PAYMENT_GATEWAY_INTEGRITY_SECRET!: string;
 
-  /** Tiempo máximo de espera de cada petición a la pasarela. */
   @IsInt()
   @Min(1_000)
   @Max(60_000)
   PAYMENT_GATEWAY_TIMEOUT_MS: number = 10_000;
 
-  /** Cuánto espera el cobro un resultado final antes de responder PENDING. */
   @IsInt()
   @Min(0)
   @Max(30_000)
   PAYMENT_GATEWAY_POLL_TIMEOUT_MS: number = 10_000;
 
-  /** Cada cuánto se consulta el estado mientras se espera. */
   @IsInt()
   @Min(250)
   @Max(10_000)
   PAYMENT_GATEWAY_POLL_INTERVAL_MS: number = 1_000;
 
-  /**
-   * Reintentos de una consulta GET a la pasarela ante un fallo pasajero (red,
-   * 5xx, 429). Caben dentro de PAYMENT_GATEWAY_TIMEOUT_MS. El cobro nunca se
-   * reintenta.
-   */
   @IsInt()
   @Min(0)
   @Max(5)
   PAYMENT_GATEWAY_GET_RETRIES: number = 2;
 
-  /** Espera antes del primer reintento; se duplica en cada uno. */
   @IsInt()
   @Min(50)
   @Max(5_000)
   PAYMENT_GATEWAY_RETRY_BACKOFF_MS: number = 250;
 
-  /** Tarifa base que se cobra en cada compra, en centavos. */
   @IsInt()
   @Min(0)
   BASE_FEE_IN_CENTS: number = 250_000;
 
-  /** Tarifa de envío, en centavos. */
   @IsInt()
   @Min(0)
   DELIVERY_FEE_IN_CENTS: number = 800_000;
 }
 
-/**
- * Valida `process.env` al arrancar. Si falta o sobra algo inválido, la API
- * no arranca: es preferible fallar al inicio que en mitad de un pago.
- */
 export const validateEnv = (
   config: Record<string, unknown>,
 ): EnvironmentVariables => {

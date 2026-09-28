@@ -29,7 +29,6 @@ describe('store', () => {
     const { products, checkout } = store.getState();
 
     expect(products).toEqual(initialProductsState);
-    // El checkout del store de la app además lleva los metadatos de redux-persist.
     expect(checkout).toMatchObject(initialCheckoutState);
   });
 });

@@ -17,11 +17,6 @@ import type { AppError } from '@shared/errors/app-error';
 import { fromNullable, Result, type ResultAsync } from '@shared/result';
 import { toTransactionOutput } from './transaction.mapper';
 
-/**
- * Abre una compra en PENDING: valida la petición en el dominio, comprueba
- * el producto y su stock, registra al cliente y guarda la transacción con
- * su entrega. Todavía no cobra: eso ocurre al enviar el pago.
- */
 export class CreateTransactionUseCase implements UseCase<
   CreateTransactionInput,
   TransactionOutput
@@ -69,7 +64,6 @@ export class CreateTransactionUseCase implements UseCase<
       .map(toTransactionOutput);
   }
 
-  /** El producto existe y tiene unidades para la cantidad pedida. */
   private findSellableProduct(
     productId: string,
     quantity: Quantity,

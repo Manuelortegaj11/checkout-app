@@ -82,7 +82,6 @@ export class TransactionDeliveryResponse implements TransactionDeliveryOutput {
   region!: string;
 }
 
-/** Resumen de una transacción (documentación de Swagger). Montos en centavos. */
 export class TransactionResponse implements TransactionOutput {
   @ApiProperty({
     format: 'uuid',

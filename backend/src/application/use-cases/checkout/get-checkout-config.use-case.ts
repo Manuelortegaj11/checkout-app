@@ -6,11 +6,6 @@ import { STORE_CURRENCY } from '@domain/constants/currency.constants';
 import type { AppError } from '@shared/errors/app-error';
 import type { ResultAsync } from '@shared/result';
 
-/**
- * Configuración del checkout: tarifas vigentes, contratos que el cliente debe
- * aceptar y datos públicos de la pasarela para tokenizar la tarjeta. Falla si
- * la pasarela no entrega los contratos.
- */
 export class GetCheckoutConfigUseCase implements UseCase<
   void,
   CheckoutConfigOutput

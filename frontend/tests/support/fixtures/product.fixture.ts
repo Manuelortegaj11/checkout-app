@@ -2,7 +2,6 @@ import type { Product } from '@shared/api/products.api';
 
 export const PRODUCT_ID = '01920000-0000-7000-8000-000000000001';
 
-/** Producto válido, igual al primero del seed; cada test cambia solo lo que le importa. */
 export const aProduct = (overrides: Partial<Product> = {}): Product => ({
   id: PRODUCT_ID,
   name: 'Audífonos inalámbricos',

@@ -33,13 +33,11 @@ const STATES: Record<
 };
 
 export interface PaymentProgressProps {
-  /** La transacción ya existe en el backend (PENDING). */
   registered: boolean;
-  /** El cobro ya se envió a la pasarela. */
+
   submitted: boolean;
 }
 
-/** Los pasos del pago que ve el cliente mientras espera. */
 export function PaymentProgress({
   registered,
   submitted,

@@ -67,7 +67,6 @@ describe('getJson', () => {
     const error = result._unsafeUnwrapErr();
 
     expect(error.code).toBe('PAYMENT_GATEWAY_UNAVAILABLE');
-    // El SyntaxError nace en el realm de fetch (Node), no en el de Jest: se compara por nombre.
     expect((error.cause as Error).name).toBe('SyntaxError');
   });
 
@@ -80,7 +79,6 @@ describe('getJson', () => {
   });
 
   describe('con reintentos', () => {
-    // Espera corta para los tests: 1 ms y luego 2 ms.
     const retry = { retries: 2, backoffMs: 1 };
 
     it.each([
@@ -116,7 +114,6 @@ describe('getJson', () => {
     });
 
     it('agotados los reintentos, devuelve el último fallo con su estado', async () => {
-      // Una respuesta nueva por intento: el cuerpo de cada una se lee una sola vez.
       fetchMock.mockImplementation(() =>
         Promise.resolve(jsonResponse({ error: 'boom' }, 503)),
       );

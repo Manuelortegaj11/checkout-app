@@ -7,7 +7,6 @@ import {
 import type { EnvironmentVariables } from '@config/env.validation';
 import type { CheckoutFees } from '@domain/rules/pricing.rules';
 
-/** Tarifas del checkout leídas de las variables de entorno (validadas al arrancar). */
 @Injectable()
 export class ConfigCheckoutSettingsAdapter implements CheckoutSettingsPort {
   constructor(

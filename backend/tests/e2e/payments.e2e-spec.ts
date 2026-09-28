@@ -5,12 +5,6 @@ import { AppModule } from '@infrastructure/modules/app.module';
 import { configureApp } from '@infrastructure/http/configure-app';
 import { PrismaService } from '@infrastructure/persistence/prisma.service';
 
-/**
- * Pago de extremo a extremo contra PostgreSQL y el Sandbox real de la pasarela:
- * tokeniza la tarjeta (como el frontend), pide los contratos, crea la compra y
- * la cobra. Requiere la base con migraciones y seed, las variables de la
- * pasarela en `.env` e internet. Al terminar restaura el stock y borra los datos.
- */
 jest.setTimeout(90_000);
 
 const SEED_MOUSE_ID = '01920000-0000-7000-8000-000000000004';
@@ -39,7 +33,6 @@ describe('Pagos (e2e, Sandbox)', () => {
 
   const http = () => request(app.getHttpServer());
 
-  /** Lo que hace el frontend: tokenizar la tarjeta directamente en la pasarela. */
   const tokenizeCard = async (number: string): Promise<string> => {
     const response = await fetch(
       `${process.env.PAYMENT_GATEWAY_BASE_URL}/tokens/cards`,
@@ -62,7 +55,6 @@ describe('Pagos (e2e, Sandbox)', () => {
     return body.data.id;
   };
 
-  /** Tokens de aceptación nuevos: la pasarela los consume en cada cobro. */
   const acceptContracts = async (): Promise<Acceptance> => {
     const response = await http().get('/api/checkout/config').expect(200);
     const { acceptance } = response.body as {
@@ -103,7 +95,6 @@ describe('Pagos (e2e, Sandbox)', () => {
       .post(`/api/transactions/${id}/payment`)
       .send({ cardToken, installments: 1, ...acceptance });
 
-  /** Como la SPA: si sigue PENDING, consulta hasta que tenga resultado. */
   const untilFinal = async (id: string): Promise<TransactionBody> => {
     for (let attempt = 0; attempt < 20; attempt++) {
       const response = await http().get(`/api/transactions/${id}`).expect(200);
@@ -203,7 +194,6 @@ describe('Pagos (e2e, Sandbox)', () => {
       200,
     );
 
-    // Los tokens de aceptación son de un solo uso: reutilizarlos hace que la pasarela rechace el cobro.
     const id = await createTransaction();
     const response = await pay(
       id,

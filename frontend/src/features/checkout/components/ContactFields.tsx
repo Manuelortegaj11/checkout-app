@@ -3,7 +3,6 @@ import { TextField } from '@shared/ui/TextField';
 import type { ContactForm } from '../checkout-form.validation';
 import type { FormSectionProps } from './form-section';
 
-/** Quien compra, que también recibe el pedido. */
 export function ContactFields({
   values,
   errors,

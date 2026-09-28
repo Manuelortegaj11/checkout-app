@@ -1,4 +1,3 @@
-// API pública de la feature: el resto de la app importa solo desde aquí.
 export { TransactionResult } from './components/TransactionResult';
 export { resultPresentation } from './transaction-result';
 export { isFinalStatus } from './transaction-status';

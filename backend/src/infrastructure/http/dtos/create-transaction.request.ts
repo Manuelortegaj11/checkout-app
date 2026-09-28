@@ -97,7 +97,6 @@ export class DeliveryRequest implements DeliveryAddress {
   postalCode?: string;
 }
 
-/** Compra pedida por el checkout. Los montos no se envían: los calcula el backend. */
 export class CreateTransactionRequest implements CreateTransactionInput {
   @ApiProperty({
     format: 'uuid',

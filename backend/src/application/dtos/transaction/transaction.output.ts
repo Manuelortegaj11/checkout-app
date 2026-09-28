@@ -26,7 +26,6 @@ export interface TransactionDeliveryOutput {
   readonly region: string;
 }
 
-/** Resumen de una transacción para el checkout. No expone datos internos de la pasarela. */
 export interface TransactionOutput {
   readonly id: string;
   readonly reference: string;
@@ -38,8 +37,8 @@ export interface TransactionOutput {
   readonly amounts: TransactionAmountsOutput;
   readonly customer: TransactionCustomerOutput;
   readonly delivery: TransactionDeliveryOutput;
-  /** ISO 8601 UTC. */
+
   readonly createdAt: string;
-  /** ISO 8601 UTC; `null` mientras siga PENDING. */
+
   readonly finalizedAt: string | null;
 }

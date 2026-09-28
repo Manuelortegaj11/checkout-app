@@ -9,18 +9,6 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
-/**
- * Lo que promete aria-modal: el foco no sale del panel (Tab y Shift+Tab dan la
- * vuelta), Escape cierra, el fondo no hace scroll y al cerrar el foco vuelve a
- * quien abrió el diálogo. Sin esto, el lector de pantalla cree que el fondo
- * está inerte mientras el tabulador sigue saliéndose a él.
- *
- * El foco inicial va al panel: así se anuncia su título y en móvil no se abre
- * el teclado antes de que el cliente elija un campo.
- *
- * Sin `onClose`, Escape no hace nada: el diálogo no se puede cerrar (por
- * ejemplo, mientras se cobra un pago).
- */
 export function useDialogBehavior(
   panelRef: RefObject<HTMLElement | null>,
   onClose?: () => void,
@@ -46,7 +34,6 @@ export function useDialogBehavior(
 
       const focusables = panel.querySelectorAll<HTMLElement>(FOCUSABLE);
       if (focusables.length === 0) {
-        // Nada a donde ir: el foco se queda en el panel.
         event.preventDefault();
         return;
       }

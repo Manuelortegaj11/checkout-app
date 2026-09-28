@@ -20,12 +20,6 @@ import {
 import { paymentFormReopened } from '../checkout.slice';
 import { finishCheckout } from '../finish-checkout';
 
-/**
- * Pantalla 5: resultado detallado del pago. "Volver a la tienda" regresa al
- * catálogo con el inventario actualizado; si el pago no se aprobó, también
- * se puede intentar de nuevo con otra tarjeta. Tras un refresh, la
- * transacción se vuelve a pedir al backend con el id guardado.
- */
 export function ResultBackdrop() {
   const dispatch = useAppDispatch();
   const step = useAppSelector(selectCheckoutStep);
@@ -38,7 +32,6 @@ export function ResultBackdrop() {
   const missing = current === null;
 
   useEffect(() => {
-    // Solo mientras esta es la pantalla activa: al salir de ella el id se descarta.
     if (step !== CHECKOUT_STEP.RESULT) {
       return;
     }

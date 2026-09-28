@@ -24,7 +24,6 @@ export interface StockBadgeProps {
   stock: number;
 }
 
-/** Unidades disponibles de un producto, con un tono según cuántas quedan. */
 export function StockBadge({ stock }: StockBadgeProps) {
   const { tone, icon: Icon, label } = LEVELS[stockLevelOf(stock)];
 

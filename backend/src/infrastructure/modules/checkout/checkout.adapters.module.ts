@@ -3,7 +3,6 @@ import { CHECKOUT_SETTINGS_PROVIDER } from '@infrastructure/settings/checkout-se
 
 const providers = [CHECKOUT_SETTINGS_PROVIDER];
 
-/** Tarifas del checkout. Las transacciones lo importan para calcular el total. */
 @Module({
   providers,
   exports: providers,

@@ -48,7 +48,6 @@ export class PaymentGatewayPublicSettingsResponse implements PaymentGatewayPubli
   publicKey!: string;
 }
 
-/** Configuración del checkout (documentación de Swagger). */
 export class CheckoutConfigResponse implements CheckoutConfigOutput {
   @ApiProperty({ enum: Object.values(CURRENCY), example: STORE_CURRENCY })
   currency!: Currency;

@@ -14,7 +14,6 @@ import { PrismaService } from '../prisma.service';
 export class CustomerPrismaRepository implements CustomerRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Upsert por email en una sola sentencia: si existe, conserva su id. */
   saveByEmail(customer: Customer): ResultAsync<Customer, AppError> {
     const { id, fullName, email, phone } = customer.toPlainObject();
 

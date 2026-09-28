@@ -11,13 +11,6 @@ import { selectPaymentGatewaySettings } from './checkout.selectors';
 
 export type TokenizationStatus = 'idle' | 'tokenizing' | 'failed';
 
-/**
- * Tokeniza la tarjeta en la pasarela sin pasar por Redux. createAsyncThunk
- * guarda su argumento en `meta.arg` de cada acción, así que el número y el CVC
- * quedarían en el historial de Redux DevTools; aquí solo existen en el
- * formulario y en la petición a la pasarela. Al store llega el resultado:
- * token, marca y últimos 4 dígitos.
- */
 export function useCardTokenization() {
   const settings = useAppSelector(selectPaymentGatewaySettings);
   const [status, setStatus] = useState<TokenizationStatus>('idle');
@@ -29,7 +22,6 @@ export function useCardTokenization() {
     return null;
   };
 
-  /** Devuelve la tarjeta tokenizada, o `null` si falló (el motivo queda en `errorCode`). */
   const tokenize = async (card: CardForm): Promise<TokenizedCard | null> => {
     if (settings === null) {
       return fail(CLIENT_ERROR_CODE.UNEXPECTED_ERROR);
@@ -37,7 +29,6 @@ export function useCardTokenization() {
 
     setStatus('tokenizing');
     setErrorCode(null);
-    // El formulario ya validó el formato MM/AA.
     const [expMonth, expYear] = card.expiry.split('/');
 
     try {

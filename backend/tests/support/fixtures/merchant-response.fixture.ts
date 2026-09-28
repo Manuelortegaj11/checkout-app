@@ -1,7 +1,3 @@
-/**
- * Respuesta de `GET /merchants/{publicKey}` con la forma real del Sandbox
- * (solo los campos relevantes).
- */
 export const aMerchantResponse = () => ({
   data: {
     id: 5113,
@@ -20,7 +16,6 @@ export const aMerchantResponse = () => ({
   },
 });
 
-/** Respuesta HTTP JSON para simular `fetch`. */
 export const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
     status,

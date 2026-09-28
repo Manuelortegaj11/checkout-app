@@ -1,18 +1,12 @@
-/** Códigos que genera el cliente cuando no hay una respuesta válida de la API. */
 export const CLIENT_ERROR_CODE = {
   NETWORK_ERROR: 'NETWORK_ERROR',
   TIMEOUT: 'TIMEOUT',
   UNEXPECTED_ERROR: 'UNEXPECTED_ERROR',
 } as const;
 
-/**
- * Fallo de una petición HTTP. `code` viene del cuerpo de error de la API
- * (`{ code, message }`) o es un código del cliente. La interfaz decide qué
- * mostrar según `code`, nunca según `message`.
- */
 export class ApiError extends Error {
   readonly code: string;
-  /** Código HTTP, o `null` si no llegó respuesta. */
+
   readonly status: number | null;
 
   constructor(code: string, status: number | null, message: string) {
@@ -23,11 +17,9 @@ export class ApiError extends Error {
   }
 }
 
-/** Código de cualquier error, listo para guardarlo en el store (es serializable). */
 export const errorCodeOf = (error: unknown): string =>
   error instanceof ApiError ? error.code : CLIENT_ERROR_CODE.UNEXPECTED_ERROR;
 
-/** El fallo fue de conexión (sin red o sin respuesta a tiempo), no de la API. */
 export const isConnectionError = (code: string | null): boolean =>
   code === CLIENT_ERROR_CODE.NETWORK_ERROR ||
   code === CLIENT_ERROR_CODE.TIMEOUT;

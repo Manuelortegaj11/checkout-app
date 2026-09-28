@@ -12,7 +12,6 @@ describe('ProductCard', () => {
     expect(card).toHaveTextContent(
       'Cancelación activa de ruido, 30 horas de batería y carga rápida por USB-C.',
     );
-    // toHaveTextContent normaliza el espacio duro que Intl pone tras el símbolo.
     expect(card).toHaveTextContent(/\$\s189\.900/);
     expect(card).toHaveTextContent('12 disponibles');
   });

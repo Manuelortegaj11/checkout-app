@@ -12,7 +12,6 @@ import type {
 import { toCustomerEntity } from './customer.prisma.mapper';
 import { toProductEntity } from './product.prisma.mapper';
 
-/** Relaciones que se cargan junto con la transacción, en una sola consulta. */
 export const TRANSACTION_VIEW_INCLUDE = {
   delivery: true,
   product: true,
@@ -23,7 +22,6 @@ export type TransactionViewRow = Prisma.TransactionGetPayload<{
   include: typeof TRANSACTION_VIEW_INCLUDE;
 }>;
 
-/** Filas de `transactions` + `deliveries` → agregado Transaction. */
 export const toTransactionEntity = (
   row: TransactionRow,
   delivery: DeliveryRow,
@@ -35,7 +33,6 @@ export const toTransactionEntity = (
     productId: row.productId,
     customerId: row.customerId,
     quantity: row.quantity,
-    // La escribe siempre el dominio (STORE_CURRENCY); el esquema la guarda como texto.
     currency: row.currency as Currency,
     amounts: {
       unitPriceInCents: row.unitPriceInCents,
@@ -61,10 +58,6 @@ export const toTransactionEntity = (
     createdAt: row.createdAt,
   });
 
-/**
- * Fila con sus relaciones → vista de la transacción. Toda transacción se crea
- * con su entrega en la misma escritura: si falta, el dato está corrupto.
- */
 export const toTransactionView = (
   row: TransactionViewRow,
 ): Result<TransactionView, AppError> =>
@@ -76,10 +69,6 @@ export const toTransactionView = (
       })
     : err(databaseError(new Error(`Transaction ${row.id} has no delivery`)));
 
-/**
- * Entidad → datos para crear la fila de `transactions` con su fila de
- * `deliveries` en una escritura anidada (atómica).
- */
 export const toTransactionCreateData = (
   transaction: Transaction,
 ): Prisma.TransactionUncheckedCreateInput => {

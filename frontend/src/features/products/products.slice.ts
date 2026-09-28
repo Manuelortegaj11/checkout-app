@@ -8,7 +8,7 @@ export type ProductsStatus = 'idle' | 'loading' | 'succeeded' | 'failed';
 export interface ProductsState {
   items: Product[];
   status: ProductsStatus;
-  /** `code` del último fallo de carga; `null` si no hubo fallo. */
+
   errorCode: string | null;
 }
 
@@ -24,7 +24,6 @@ const productsSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      // Se conservan los productos anteriores mientras llega el inventario actualizado.
       .addCase(fetchProducts.pending, (state) => {
         state.status = 'loading';
         state.errorCode = null;

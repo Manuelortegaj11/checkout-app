@@ -12,7 +12,6 @@ import { TransactionModule } from './transaction/transaction.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    // Límite general por IP: 100 peticiones por minuto.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PersistenceModule,
     HealthModule,

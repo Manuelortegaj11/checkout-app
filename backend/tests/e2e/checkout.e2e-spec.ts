@@ -4,11 +4,6 @@ import request from 'supertest';
 import { AppModule } from '@infrastructure/modules/app.module';
 import { configureApp } from '@infrastructure/http/configure-app';
 
-/**
- * Configuración del checkout contra el Sandbox real de la pasarela.
- * Requiere `PAYMENT_GATEWAY_BASE_URL` y `PAYMENT_GATEWAY_PUBLIC_KEY` en `.env`
- * y acceso a internet.
- */
 describe('Checkout (e2e)', () => {
   let app: NestExpressApplication;
 
@@ -43,13 +38,11 @@ describe('Checkout (e2e)', () => {
       deliveryFeeInCents: Number(process.env.DELIVERY_FEE_IN_CENTS ?? 800_000),
       acceptance: { endUserPolicy: contract, personalDataAuth: contract },
       paymentGateway: {
-        // URL https sin barra final: el frontend le añade la ruta de tokenización.
         baseUrl: expect.stringMatching(/^https:\/\/\S+[^/]$/) as unknown,
         publicKey: expect.stringMatching(/^pub_/) as unknown,
       },
     });
 
-    // El secreto de integridad firma los cobros: nunca sale del backend.
     const integritySecret = process.env.PAYMENT_GATEWAY_INTEGRITY_SECRET ?? '';
     expect(integritySecret).not.toBe('');
     expect(JSON.stringify(response.body)).not.toContain(integritySecret);

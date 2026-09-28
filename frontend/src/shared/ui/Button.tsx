@@ -15,10 +15,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
 }
 
-/**
- * Botón de la marca: 44 px de alto (objetivo táctil) y esquinas rectas.
- * Sin `type`, un botón dentro de un formulario lo enviaría: por defecto es "button".
- */
 export function Button({
   variant = 'primary',
   type = 'button',

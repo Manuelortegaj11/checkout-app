@@ -7,17 +7,10 @@ export interface CheckboxProps extends Omit<
   'type'
 > {
   label: string;
-  /**
-   * Contenido bajo el texto y fuera de la etiqueta, por ejemplo un enlace al
-   * documento que se acepta: pulsarlo nunca marca la casilla.
-   */
+
   details?: ReactNode;
 }
 
-/**
- * Casilla nativa (accesible con teclado y lector de pantalla) con la caja
- * dibujada con los tokens de la marca. La fila mide al menos 44 px de alto.
- */
 export function Checkbox({
   label,
   details,

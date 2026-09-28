@@ -8,10 +8,6 @@ import { aProductRow } from '@testing/fixtures/product-row.fixture';
 import { PersistenceModule } from '@infrastructure/modules/persistence/persistence.module';
 import { ProductModule } from '@infrastructure/modules/product/product.module';
 
-/**
- * Cableado real del contexto (controlador → caso de uso → repositorio)
- * con Prisma simulado: verifica que cada port esté conectado a su adapter.
- */
 describe('ProductModule', () => {
   let app: NestExpressApplication;
   const productTable = {

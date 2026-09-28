@@ -1,4 +1,3 @@
-// API pública de la feature: el resto de la app importa solo desde aquí.
 export { PayWithCardButton } from './components/PayWithCardButton';
 export { PaymentModal } from './components/PaymentModal';
 export { ProcessingBackdrop } from './components/ProcessingBackdrop';

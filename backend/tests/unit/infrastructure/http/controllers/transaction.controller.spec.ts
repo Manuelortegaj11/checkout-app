@@ -19,7 +19,6 @@ import { mockUseCase } from '@testing/mocks/use-case.mock';
 import { TransactionController } from '@infrastructure/http/controllers/transaction.controller';
 import { CreateTransactionRequest } from '@infrastructure/http/dtos/create-transaction.request';
 
-/** La compra tal como el ValidationPipe se la entrega al controlador. */
 const aCreateTransactionRequest = (
   overrides: Partial<CreateTransactionInput> = {},
 ): CreateTransactionRequest =>

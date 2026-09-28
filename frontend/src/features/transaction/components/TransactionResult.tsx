@@ -35,14 +35,10 @@ const TONE_CLASSES: Record<ResultTone, string> = {
 
 export interface TransactionResultProps {
   transaction: Transaction;
-  /** Tarjeta con la que se pagó, si la app la conoce. */
+
   card?: TokenizedCard | null;
 }
 
-/**
- * Resultado detallado de una transacción (pantalla 5): estado, motivo que dio
- * la pasarela, desglose cobrado según el backend y datos de la entrega.
- */
 export function TransactionResult({
   transaction,
   card,

@@ -40,7 +40,6 @@ import { OrderLine } from './OrderLine';
 
 const EMPTY_CARD: CardForm = { number: '', holder: '', expiry: '', cvc: '' };
 
-/** Un error se muestra si el campo ya se visitó o si el cliente intentó enviar. */
 const visible = <Form,>(
   errors: FormErrors<Form>,
   touched: ReadonlySet<string>,
@@ -52,12 +51,6 @@ const visible = <Form,>(
         Object.entries(errors).filter(([field]) => touched.has(field)),
       ) as FormErrors<Form>);
 
-/**
- * Pantalla 2: datos de la tarjeta y de entrega en un modal sobre el catálogo.
- * Al enviar valida, tokeniza la tarjeta y pasa al resumen. El contacto y la
- * dirección se guardan como borrador en el store (sobreviven a un refresh);
- * la tarjeta vive solo aquí.
- */
 export function PaymentModal() {
   const dispatch = useAppDispatch();
   const product = useAppSelector(selectCheckoutProduct);
@@ -73,7 +66,6 @@ export function PaymentModal() {
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
 
-  // Los tokens de aceptación son de un solo uso: cada compra pide los suyos.
   useEffect(() => {
     void dispatch(fetchCheckoutConfig());
   }, [dispatch]);

@@ -5,16 +5,11 @@ import {
   type IdGeneratorPort,
 } from '@application/ports/id-generator.port';
 
-/**
- * UUID versión 7 (RFC 9562). Los primeros 48 bits son la marca de tiempo en
- * milisegundos: los ids quedan ordenados por fecha de creación y los índices
- * de PostgreSQL se mantienen compactos. El resto de bits es aleatorio.
- */
 export const uuidV7 = (timestampMs: number = Date.now()): string => {
   const bytes = randomBytes(16);
   bytes.writeUIntBE(timestampMs, 0, 6);
-  bytes[6] = (bytes[6] & 0x0f) | 0x70; // versión 7
-  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variante RFC 9562 (10xx)
+  bytes[6] = (bytes[6] & 0x0f) | 0x70;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
 
   const hex = bytes.toString('hex');
   return [

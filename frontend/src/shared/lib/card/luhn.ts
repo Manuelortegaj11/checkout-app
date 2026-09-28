@@ -1,8 +1,3 @@
-/**
- * Algoritmo de Luhn: detecta errores de tipeo en un número de tarjeta.
- * De derecha a izquierda se duplica un dígito de cada dos (restando 9 si pasa
- * de 9) y la suma total debe ser múltiplo de 10.
- */
 export const passesLuhn = (digits: string): boolean => {
   if (!/^\d+$/.test(digits)) {
     return false;

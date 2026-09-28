@@ -29,7 +29,6 @@ describe('CreateTransactionUseCase', () => {
   const transactions = mockTransactionRepository();
   let useCase: CreateTransactionUseCase;
 
-  /** Argumento con el que se llamó a un doble, como entidad. */
   const savedCustomer = (): Customer => customers.saveByEmail.mock.calls[0][0];
   const createdTransaction = (): Transaction =>
     transactions.create.mock.calls[0][0];

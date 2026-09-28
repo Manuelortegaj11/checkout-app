@@ -1,32 +1,27 @@
 import { ApiError, CLIENT_ERROR_CODE } from './api-error';
 import { requestJson } from './http-client';
 
-/** Datos públicos de la pasarela; los entrega el backend en la configuración del checkout. */
 export interface PaymentGatewaySettings {
   baseUrl: string;
   publicKey: string;
 }
 
-/** Tarjeta tal como la escribió el cliente. Solo viaja a la pasarela, nunca al backend. */
 export interface CardDetails {
-  /** Solo dígitos. */
   number: string;
   cvc: string;
-  /** Dos dígitos: `09`. */
+
   expMonth: string;
-  /** Dos dígitos: `29`. */
+
   expYear: string;
   holder: string;
 }
 
-/** Lo único que la app guarda de la tarjeta. */
 export interface TokenizedCard {
   token: string;
   brand: string;
   last4: string;
 }
 
-/** La pasarela respondió 422: no acepta los datos de la tarjeta. */
 export const CARD_REJECTED = 'CARD_REJECTED';
 
 interface GatewayTokenResponse {
@@ -41,10 +36,6 @@ const isTokenResponse = (
   typeof body.data.last_four === 'string';
 
 export const paymentGatewayApi = {
-  /**
-   * Tokeniza la tarjeta directamente en la pasarela con la llave pública.
-   * Devuelve el token de un solo uso con la marca y los últimos 4 dígitos.
-   */
   tokenizeCard: async (
     card: CardDetails,
     { baseUrl, publicKey }: PaymentGatewaySettings,

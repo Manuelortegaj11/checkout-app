@@ -11,10 +11,6 @@ import type { SubmitPaymentInput } from '@application/dtos/transaction/submit-pa
 import { MAX_INSTALLMENTS } from '@domain/constants/transaction.constants';
 import { Trim } from './transforms';
 
-/**
- * Cobro de una transacción. Solo llegan tokens: los datos de la tarjeta se
- * tokenizan en el frontend y cualquier otro campo se rechaza con 400.
- */
 export class SubmitPaymentRequest implements Omit<
   SubmitPaymentInput,
   'transactionId'

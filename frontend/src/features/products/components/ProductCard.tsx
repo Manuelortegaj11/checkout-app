@@ -7,13 +7,12 @@ import { StockBadge } from './StockBadge';
 
 export interface ProductCardProps {
   product: Product;
-  /** Foto visible al cargar la página: se pide primero y sin espera. */
+
   priority?: boolean;
-  /** Acción al pie de la tarjeta, como el botón de pago que aporta el checkout. */
+
   action?: ReactNode;
 }
 
-/** Producto con su foto, descripción, precio y unidades disponibles. */
 export function ProductCard({
   product,
   priority = false,

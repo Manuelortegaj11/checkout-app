@@ -5,12 +5,6 @@ import { err, ok, type Result } from '@shared/result';
 import { paymentGatewayUnavailable } from './payment-gateway.errors';
 import { dataOf, isNonEmptyString } from './response-guards';
 
-/**
- * Traduce la respuesta de la pasarela al crear o consultar un cobro
- * (`{ data: { id, status, status_message } }`) al resultado del dominio.
- * Una forma inesperada o un estado desconocido es un error: nunca se guarda
- * un resultado a medias.
- */
 export const toPaymentResult = (
   body: unknown,
 ): Result<PaymentResult, AppError> => {

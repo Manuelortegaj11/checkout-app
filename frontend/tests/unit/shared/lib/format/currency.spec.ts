@@ -1,6 +1,5 @@
 import { formatCurrency } from '@shared/lib/format/currency';
 
-// Intl separa el símbolo del monto con un espacio que no se parte (U+00A0).
 const NBSP = ' ';
 
 describe('formatCurrency', () => {

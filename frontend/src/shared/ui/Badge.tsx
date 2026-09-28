@@ -3,8 +3,6 @@ import { cx } from '@shared/lib/class-names';
 
 export type BadgeTone = 'brand' | 'success' | 'warning' | 'danger' | 'info';
 
-// El texto usa el tono "-strong": sobre el fondo suave, el tono principal no
-// alcanza el contraste 4.5:1 que pide WCAG AA para texto pequeño.
 const TONE_CLASSES: Record<BadgeTone, string> = {
   brand: 'bg-primary-100 text-primary-700',
   success: 'bg-success-soft text-success-strong',
@@ -18,7 +16,6 @@ export interface BadgeProps {
   children: ReactNode;
 }
 
-/** Etiqueta corta de estado, como el stock de un producto. */
 export function Badge({ tone = 'brand', children }: BadgeProps) {
   return (
     <span

@@ -7,10 +7,6 @@ import { TextField } from '@shared/ui/TextField';
 import type { CardForm } from '../checkout-form.validation';
 import type { FormSectionProps } from './form-section';
 
-/**
- * Datos de la tarjeta. Viven solo en el estado local del formulario: van a la
- * pasarela para tokenizarlos y nunca llegan al store ni al backend.
- */
 export function CardFields({
   values,
   errors,

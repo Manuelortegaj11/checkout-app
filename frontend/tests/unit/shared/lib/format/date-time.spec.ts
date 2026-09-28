@@ -1,6 +1,5 @@
 import { formatDateTime } from '@shared/lib/format/date-time';
 
-// Intl separa la hora y "a. m." con espacios especiales: se normalizan para comparar.
 const normalized = (text: string) => text.replace(/\s/g, ' ');
 
 describe('formatDateTime', () => {

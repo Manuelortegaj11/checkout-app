@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { Modal } from '@shared/ui/Modal';
 
-/** Botón que abre el modal, como el de "Pagar con tarjeta". */
 function Harness({ onClose = jest.fn() }: { onClose?: () => void }) {
   const [open, setOpen] = useState(false);
   const close = () => {

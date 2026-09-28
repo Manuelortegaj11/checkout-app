@@ -37,7 +37,6 @@ const PRESENTATIONS: Record<TransactionStatus, ResultPresentation> = {
   },
 };
 
-/** Cómo se comunica al cliente cada estado de la transacción. */
 export const resultPresentation = (
   status: TransactionStatus,
 ): ResultPresentation => PRESENTATIONS[status];

@@ -12,7 +12,6 @@ export interface QuantityStepperProps {
 const STEP_BUTTON =
   'grid size-11 cursor-pointer place-items-center text-ink transition-colors duration-150 ease-standard hover:bg-hover disabled:cursor-not-allowed disabled:text-ink-subtle disabled:hover:bg-transparent';
 
-/** Selector de unidades con botones de 44 px; no deja salir del rango. */
 export function QuantityStepper({
   label,
   value,

@@ -1,23 +1,12 @@
 import type { Config } from 'jest';
 
-/**
- * Una sola configuración con un proyecto por nivel de prueba, como en el
- * backend. Cada script elige el suyo con `--selectProjects` (ver package.json):
- *
- * - unit         tests/unit/**         *.spec.ts(x)    una pieza aislada, espejo de src/
- * - integration  tests/integration/**  *.int-spec.tsx  un flujo del checkout con el store,
- *                                                       la persistencia y los servicios reales;
- *                                                       solo la red es simulada
- */
 const shared = {
   rootDir: '.',
-  // Jest solo indexa el código y las pruebas, no node_modules.
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testEnvironment: 'jsdom',
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
   },
-  // Alias de tsconfig.test.json (paths).
   moduleNameMapper: {
     '^@(app|features|shared|store)/(.*)$': '<rootDir>/src/$1/$2',
     '^@testing/(.*)$': '<rootDir>/tests/support/$1',
@@ -44,12 +33,9 @@ const config: Config = {
       ],
     },
   ],
-  // `pnpm test:cov` mide la cobertura con las pruebas unitarias.
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
-    // Arranque: solo monta <App /> en el DOM.
     '!src/main.tsx',
-    // API pública de cada feature: solo re-exporta.
     '!src/features/*/index.ts',
   ],
   coverageDirectory: 'coverage',

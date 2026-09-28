@@ -17,14 +17,9 @@ import { ProductCardSkeleton } from './ProductCardSkeleton';
 const SKELETON_COUNT = 3;
 
 export interface ProductCatalogProps {
-  /**
-   * Acción de cada tarjeta. La aporta quien compone la pantalla (App), así el
-   * catálogo no depende de la feature de checkout.
-   */
   renderProductAction?: (product: Product) => ReactNode;
 }
 
-/** Pantalla 1: el inventario con su precio y sus unidades disponibles. */
 export function ProductCatalog({ renderProductAction }: ProductCatalogProps) {
   const dispatch = useAppDispatch();
   const products = useAppSelector(selectProducts);

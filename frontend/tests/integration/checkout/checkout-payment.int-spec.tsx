@@ -25,11 +25,6 @@ import {
 } from '@testing/helpers/fake-network';
 import { renderApp } from '@testing/helpers/render-app';
 
-/**
- * Pantallas 3 a 5 con el store, la persistencia y los servicios reales: solo
- * la red es simulada. El inventario responde 12 unidades y, después de una
- * compra aprobada, 11.
- */
 const PAYMENT_URL = `/api/transactions/${TRANSACTION_ID}/payment`;
 const TRANSACTION_URL = `/api/transactions/${TRANSACTION_ID}`;
 
@@ -37,9 +32,8 @@ const network = ({
   paid,
   current = paid,
 }: {
-  /** Respuesta del cobro; `null` si nunca llega (la página se recarga antes). */
   paid: Transaction | null;
-  /** Lo que responde la consulta de la transacción. */
+
   current?: Transaction | null;
 }) => {
   let charged = false;
@@ -97,7 +91,6 @@ describe('Pago del pedido (integración)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(await screen.findByText('11 disponibles')).toBeInTheDocument();
 
-    // Primero se abre la transacción PENDING y después se cobra, solo con tokens.
     expect(requestsMade(fetchMock)).toEqual(
       expect.arrayContaining(['POST /api/transactions', `POST ${PAYMENT_URL}`]),
     );

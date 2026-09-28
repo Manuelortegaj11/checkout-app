@@ -8,9 +8,8 @@ import {
 } from './transaction.thunks';
 
 export interface TransactionState {
-  /** Última versión conocida de la transacción en curso, tal como la devolvió la API. */
   current: Transaction | null;
-  /** Estado de la última petición sobre la transacción. */
+
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
   errorCode: string | null;
 }
@@ -23,11 +22,6 @@ export const initialTransactionState: TransactionState = {
 
 const requests = [createTransaction, payTransaction, fetchTransaction] as const;
 
-/**
- * La transacción que devuelve el backend, fuente de verdad del pago. No se
- * persiste: después de un refresh se vuelve a pedir con el id que guarda el
- * checkout.
- */
 const transactionSlice = createSlice({
   name: 'transaction',
   initialState: initialTransactionState,

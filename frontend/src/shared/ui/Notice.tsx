@@ -10,8 +10,6 @@ import { cx } from '@shared/lib/class-names';
 
 export type NoticeTone = 'info' | 'success' | 'warning' | 'danger';
 
-// La superficie queda neutra: el tono solo tiñe el borde y el ícono, así un
-// aviso no compite con el resto de la pantalla.
 const TONES: Record<NoticeTone, { icon: LucideIcon; classes: string }> = {
   info: { icon: Info, classes: 'border-info/30 [&>svg]:text-info' },
   success: {
@@ -32,11 +30,10 @@ export interface NoticeProps {
   tone?: NoticeTone;
   title: string;
   children?: ReactNode;
-  /** Acción para resolverlo, por ejemplo un botón de reintentar. */
+
   action?: ReactNode;
 }
 
-/** Aviso con ícono. Los de tono `danger` se anuncian de inmediato (role="alert"). */
 export function Notice({
   tone = 'info',
   title,
