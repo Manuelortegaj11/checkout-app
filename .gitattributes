@@ -1,0 +1,14 @@
+# Todo archivo de texto se guarda y se extrae con LF, también en Windows.
+# Coincide con Prettier y con el servidor Linux: los scripts con CRLF fallan al ejecutarse.
+* text=auto eol=lf
+
+# Binarios: sin conversión de fin de línea.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary

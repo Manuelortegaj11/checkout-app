@@ -1,0 +1,618 @@
+# Modelo de datos y contrato de la API
+
+Diseño acordado antes de programar: qué se guarda en la base de datos, qué endpoints expone el backend, qué devuelve cada uno y con qué errores. El frontend y el backend se construyen contra este contrato.
+
+## 1. Flujo de extremo a extremo
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as SPA (frontend)
+    participant API as API (NestJS)
+    participant DB as PostgreSQL
+    participant PG as Pasarela de pagos
+
+    SPA->>API: GET /api/products
+    API->>DB: productos con stock
+    API-->>SPA: 200 lista de productos
+
+    SPA->>API: GET /api/checkout/config
+    API->>PG: tokens de aceptación (llave pública)
+    API-->>SPA: 200 tarifas + contratos a aceptar
+
+    Note over SPA: El cliente llena tarjeta y entrega
+    SPA->>PG: tokenizar tarjeta (llave pública)
+    PG-->>SPA: token, marca, últimos 4
+
+    Note over SPA: Resumen: producto + tarifa base + envío
+    SPA->>API: POST /api/transactions
+    API->>DB: cliente + transacción PENDING + entrega PENDING_PAYMENT
+    API-->>SPA: 201 transacción (id, referencia, montos)
+
+    SPA->>API: POST /api/transactions/:id/payment
+    API->>DB: reclamar envío + reservar stock
+    API->>PG: crear transacción (llave pública + firma de integridad)
+    alt la creación responde
+        API->>DB: guardar inmediatamente id + estado inicial
+        API->>PG: consultar estado (hasta ~10 s)
+        opt estado final
+            API->>DB: liquidar (estado, entrega, conservar/devolver reserva)
+        end
+        API-->>SPA: 200 transacción (PENDING o final)
+    else red / timeout / 5xx
+        Note over API,DB: conservar PENDING + stock reservado
+        API-->>SPA: 502 PAYMENT_GATEWAY_UNAVAILABLE
+    end
+
+    loop mientras siga PENDING (cada 2 s, máx. 60 s)
+        SPA->>API: GET /api/transactions/:id
+        API->>PG: consultar estado
+        API->>DB: liquidar si ya es final
+        API-->>SPA: 200 transacción
+    end
+
+    Note over SPA: Resultado → volver al producto
+    SPA->>API: GET /api/products (stock actualizado)
+```
+
+### Por qué la transacción se crea y se paga en dos llamadas
+
+- Sigue literalmente el enunciado: primero se crea la transacción `PENDING` y se obtiene su número; después se llama a la pasarela.
+- El `id` de la transacción se persiste en el frontend. Si el cliente refresca a mitad del pago, la SPA retoma con ese `id` en vez de crear otra transacción.
+- El pago se puede reintentar de forma segura: el backend rechaza un segundo envío a la pasarela para la misma transacción (`PAYMENT_ALREADY_SUBMITTED`), así que nunca hay doble cobro.
+
+## 2. Modelo de datos
+
+```mermaid
+erDiagram
+    PRODUCT ||--o{ TRANSACTION : "se compra en"
+    CUSTOMER ||--o{ TRANSACTION : "realiza"
+    TRANSACTION ||--|| DELIVERY : "genera"
+
+    PRODUCT {
+        uuid id PK
+        string name
+        string description
+        int priceInCents
+        int stock
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
+    }
+    CUSTOMER {
+        uuid id PK
+        string fullName
+        string email UK
+        string phone
+        datetime createdAt
+        datetime updatedAt
+    }
+    TRANSACTION {
+        uuid id PK
+        string reference UK
+        enum status
+        uuid productId FK
+        uuid customerId FK
+        int quantity
+        int unitPriceInCents
+        int productAmountInCents
+        int baseFeeInCents
+        int deliveryFeeInCents
+        int totalInCents
+        string currency
+        string gatewayTransactionId UK "nullable"
+        datetime paymentSubmittedAt "nullable"
+        string statusMessage "nullable"
+        datetime finalizedAt "nullable"
+        datetime createdAt
+        datetime updatedAt
+    }
+    DELIVERY {
+        uuid id PK
+        uuid transactionId FK,UK
+        enum status
+        string recipientName
+        string phone
+        string addressLine1
+        string addressLine2 "nullable"
+        string city
+        string region
+        string postalCode "nullable"
+        datetime createdAt
+        datetime updatedAt
+    }
+```
+
+### Tablas
+
+**`Product`** (inventario)
+
+| Campo | Tipo | Reglas |
+|-------|------|--------|
+| `id` | UUID | PK |
+| `name` | texto (120) | Obligatorio |
+| `description` | texto | Obligatorio |
+| `priceInCents` | entero | `> 0`. Precio unitario en centavos |
+| `stock` | entero | `>= 0`. Unidades disponibles |
+| `imageUrl` | texto | Ruta de la imagen (servida por el frontend) |
+
+**`Customer`**
+
+| Campo | Tipo | Reglas |
+|-------|------|--------|
+| `id` | UUID | PK |
+| `fullName` | texto (120) | Obligatorio |
+| `email` | texto | Único y normalizado (sin espacios, en minúsculas): es la identidad del cliente. Si ya existe, se reutiliza el cliente y se actualizan nombre y teléfono |
+| `phone` | texto (20) | Obligatorio |
+
+**`Transaction`**
+
+| Campo | Tipo | Reglas |
+|-------|------|--------|
+| `id` | UUID | PK. Es el "número de transacción" que ve el cliente |
+| `reference` | texto | Único. `TX-` + el id sin guiones y en mayúsculas (`TX-0192…`): deriva del id, así que nunca se repite. Se envía a la pasarela y entra en la firma |
+| `status` | enum | `PENDING`, `APPROVED`, `DECLINED`, `VOIDED`, `ERROR` |
+| `quantity` | entero | `1..10` |
+| `unitPriceInCents` | entero | Precio del producto **copiado** al crear la transacción |
+| `productAmountInCents` | entero | `unitPriceInCents × quantity` |
+| `baseFeeInCents` | entero | Tarifa base, siempre se cobra |
+| `deliveryFeeInCents` | entero | Tarifa de envío |
+| `totalInCents` | entero | Suma de los tres montos. Es lo que se cobra |
+| `currency` | texto (3) | `COP` |
+| `gatewayTransactionId` | texto | Único, nulo hasta enviar el pago |
+| `paymentSubmittedAt` | fecha | Nulo hasta enviar el pago. Evita el doble cobro |
+| `statusMessage` | texto | Motivo devuelto por la pasarela (rechazo o error) |
+| `finalizedAt` | fecha | Momento en que llegó a un estado final |
+
+**`Delivery`**
+
+| Campo | Tipo | Reglas |
+|-------|------|--------|
+| `id` | UUID | PK |
+| `transactionId` | UUID | FK única: una entrega por transacción |
+| `status` | enum | `PENDING_PAYMENT`, `ASSIGNED`, `CANCELLED` |
+| `recipientName`, `phone` | texto | Quién recibe |
+| `addressLine1`, `addressLine2` | texto | Dirección; la segunda línea es opcional |
+| `city`, `region` | texto | Ciudad y departamento |
+| `postalCode` | texto | Opcional |
+
+### Decisiones del modelo
+
+- **Dinero en centavos y enteros**, nunca decimales, igual que la pasarela (`amount_in_cents`). Con `Int` de PostgreSQL el máximo por monto es ~21 millones de COP, suficiente para esta tienda.
+- **La transacción copia los precios y tarifas** del momento de la compra: si el producto cambia de precio después, el histórico no se altera.
+- **Las tarifas las calcula siempre el backend.** El frontend las muestra en el resumen, pero en `POST /api/transactions` no las envía: el backend las recalcula.
+- **La entrega se crea junto con la transacción** en `PENDING_PAYMENT`, porque los datos de envío se capturan antes de pagar. Al aprobarse el pago pasa a `ASSIGNED` (el producto queda asignado al cliente); si no se aprueba, a `CANCELLED`.
+- **Los datos de la tarjeta no se guardan** en ninguna tabla: ni número, ni CVC, ni el token.
+
+- **Las reglas numéricas** (`priceInCents > 0`, `stock >= 0`, `quantity 1..10`) las hace cumplir el dominio y la actualización condicional del stock. El esquema de Prisma no soporta restricciones `CHECK`, y añadirlas exigiría editar una migración a mano, algo que no se hace en este proyecto.
+
+### Nombres en la base de datos
+
+Todo en inglés. En Prisma, modelos en `PascalCase` singular y campos en `camelCase`; en PostgreSQL, tablas en `snake_case` plural y columnas en `snake_case`:
+
+| Modelo (Prisma) | Tabla (PostgreSQL) | Ejemplo de campo → columna |
+|-----------------|--------------------|----------------------------|
+| `Product` | `products` | `priceInCents` → `price_in_cents` |
+| `Customer` | `customers` | `fullName` → `full_name` |
+| `Transaction` | `transactions` | `gatewayTransactionId` → `gateway_transaction_id` |
+| `Delivery` | `deliveries` | `addressLine1` → `address_line1` |
+| `TransactionStatus` (enum) | `transaction_status` | `PENDING`, `APPROVED`… |
+| `DeliveryStatus` (enum) | `delivery_status` | `PENDING_PAYMENT`, `ASSIGNED`… |
+
+- Índices y claves foráneas con los nombres que genera Prisma: `transactions_product_id_idx`, `transactions_product_id_fkey`…
+- Identificadores **UUID v7** (ordenados por tiempo, mejores para los índices) y fechas `TIMESTAMPTZ(3)`. Los genera la API (`IdGeneratorPort`) al crear cada entidad, así el dominio tiene el id antes de persistir; el seed usa ids fijos.
+- El esquema está en `backend/prisma/schema.prisma`. **Las migraciones se generan siempre con `pnpm db:migrate --name <cambio>`**; nunca se escriben ni editan a mano.
+
+### Datos iniciales (seed)
+
+`backend/prisma/seed.ts`, ejecutado con `pnpm db:seed`. No hay endpoints para crear productos.
+
+| ID | Producto | Precio (COP) | Stock |
+|----|----------|--------------|-------|
+| `01920000-0000-7000-8000-000000000001` | Audífonos inalámbricos | 189.900 | 12 |
+| `01920000-0000-7000-8000-000000000002` | Reloj inteligente | 349.900 | 8 |
+| `01920000-0000-7000-8000-000000000003` | Teclado mecánico | 259.900 | 5 |
+| `01920000-0000-7000-8000-000000000004` | Mouse ergonómico | 89.900 | 20 |
+| `01920000-0000-7000-8000-000000000005` | Parlante Bluetooth portátil | 149.900 | **1** (para probar el agotamiento tras una compra) |
+| `01920000-0000-7000-8000-000000000006` | Cámara web 4K | 219.900 | **0** (para probar el estado agotado) |
+
+- Es **idempotente**: crea los productos que faltan y no modifica los existentes, así que nunca pisa el stock de una base de datos en uso.
+- Para volver al estado inicial en desarrollo: `pnpm db:reset` (borra la base, aplica las migraciones y vuelve a ejecutar el seed).
+
+## 3. Estados
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "Transaction" as T {
+        [*] --> PENDING
+        PENDING --> APPROVED
+        PENDING --> DECLINED
+        PENDING --> VOIDED
+        PENDING --> ERROR
+    }
+    state "Delivery" as D {
+        [*] --> PENDING_PAYMENT
+        PENDING_PAYMENT --> ASSIGNED: pago APPROVED
+        PENDING_PAYMENT --> CANCELLED: DECLINED / VOIDED / ERROR
+    }
+```
+
+- Una transacción **solo sale de `PENDING` una vez**. Intentar resolverla de nuevo devuelve `TRANSACTION_ALREADY_RESOLVED`.
+- **Reserva** (antes de llamar a la pasarela): reclamar `paymentSubmittedAt` y ejecutar `stock = stock − quantity WHERE stock >= quantity` forman una sola transacción PostgreSQL. Si no se reservan unidades, no se cobra.
+- **Liquidación** (se ejecuta una sola vez, al llegar a un estado final), en una única transacción de base de datos:
+  - `APPROVED`: transacción `APPROVED` + entrega `ASSIGNED`; conserva la reserva.
+  - `DECLINED` / `VOIDED` / `ERROR`: transacción con ese estado + entrega `CANCELLED` + `stock = stock + quantity`.
+- La reclamación y la liquidación son idempotentes: dos solicitudes no pueden consumir ni devolver dos veces la misma reserva.
+
+## 4. Convenciones de la API
+
+- Prefijo **`/api`**. JSON con claves en `camelCase`.
+- Montos siempre en **centavos, como enteros**, acompañados de `currency`.
+- Fechas en **ISO 8601 UTC**. Identificadores **UUID**.
+- Documentación interactiva con Swagger en **`/api/docs`**.
+- **Errores** con una forma única:
+
+  ```json
+  { "code": "OUT_OF_STOCK", "message": "Not enough units available" }
+  ```
+
+  Los errores de formato de la petición (400) añaden `details` con los campos inválidos:
+
+  ```json
+  {
+    "code": "INVALID_REQUEST",
+    "message": "Request validation failed",
+    "details": [{ "field": "customer.email", "message": "email must be an email" }]
+  }
+  ```
+
+- **Rate limiting:** límite general por IP y uno más estricto en `POST /api/transactions/:id/payment`.
+
+## 5. Endpoints
+
+| Método | Ruta | Módulo | Para qué |
+|--------|------|--------|----------|
+| `GET` | `/api/products` | Inventario | Listar productos con su stock |
+| `GET` | `/api/products/:id` | Inventario | Detalle de un producto |
+| `GET` | `/api/checkout/config` | Checkout | Tarifas y contratos que el cliente debe aceptar |
+| `POST` | `/api/transactions` | Transacciones, clientes, entregas | Crear la transacción `PENDING` |
+| `POST` | `/api/transactions/:id/payment` | Transacciones | Enviar el pago a la pasarela |
+| `GET` | `/api/transactions/:id` | Transacciones | Consultar (y sincronizar) el estado |
+| `GET` | `/api/health` | — | Comprobar que la API está en marcha (para el despliegue). Sin rate limiting |
+
+**Clientes y entregas no tienen endpoints propios.** Son módulos completos del backend (dominio, casos de uso y repositorios), pero se crean y se leen a través de las transacciones. Exponer `GET /customers` o `GET /deliveries` sin autenticación filtraría datos personales.
+
+### `GET /api/products`
+
+Todos los productos, **incluidos los agotados** (`stock: 0`), en orden de creación. El frontend decide cómo mostrar los agotados.
+
+**200**
+
+```json
+[
+  {
+    "id": "01920000-0000-7000-8000-000000000001",
+    "name": "Audífonos inalámbricos",
+    "description": "Cancelación activa de ruido, 30 horas de batería y carga rápida por USB-C.",
+    "priceInCents": 18990000,
+    "currency": "COP",
+    "stock": 12,
+    "imageUrl": "/images/products/wireless-headphones.webp"
+  }
+]
+```
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `DB_QUERY_FAILED` | 500 | La base de datos no responde |
+
+### `GET /api/products/:id`
+
+**200:** el mismo objeto de producto.
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `INVALID_REQUEST` | 400 | `id` no es un UUID |
+| `PRODUCT_NOT_FOUND` | 404 | No existe |
+| `DB_QUERY_FAILED` | 500 | La base de datos no responde |
+
+**400** (`id` inválido):
+
+```json
+{
+  "code": "INVALID_REQUEST",
+  "message": "Request validation failed",
+  "details": [{ "field": "id", "message": "id must be a UUID" }]
+}
+```
+
+**404:**
+
+```json
+{ "code": "PRODUCT_NOT_FOUND", "message": "Product 01920000-0000-7000-8000-0000000000ff not found" }
+```
+
+### `GET /api/checkout/config`
+
+Devuelve las tarifas, los dos contratos que el cliente debe aceptar con casillas explícitas antes de pagar y los datos públicos de la pasarela para tokenizar la tarjeta en el navegador. Las tarifas salen de la configuración (`BASE_FEE_IN_CENTS`, `DELIVERY_FEE_IN_CENTS`); los contratos se piden a la pasarela en cada llamada, para entregar siempre su versión vigente.
+
+`paymentGateway` trae la URL base de la API de la pasarela (sin barra final) y la llave pública (`PAYMENT_GATEWAY_BASE_URL`, `PAYMENT_GATEWAY_PUBLIC_KEY`). Con ellas el navegador tokeniza la tarjeta directamente en la pasarela: el número y el CVC nunca llegan al backend. Son datos públicos; el secreto de integridad nunca sale del backend.
+
+**200**
+
+```json
+{
+  "currency": "COP",
+  "baseFeeInCents": 250000,
+  "deliveryFeeInCents": 800000,
+  "acceptance": {
+    "endUserPolicy": {
+      "token": "eyJhbGciOiJIUzI1NiJ9...",
+      "url": "https://gateway.example/docs/end-user-policy.pdf"
+    },
+    "personalDataAuth": {
+      "token": "eyJhbGciOiJIUzI1NiJ9...",
+      "url": "https://gateway.example/docs/personal-data-auth.pdf"
+    }
+  },
+  "paymentGateway": {
+    "baseUrl": "https://gateway.example/v1",
+    "publicKey": "pub_test_..."
+  }
+}
+```
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | La pasarela no responde, tarda más que `PAYMENT_GATEWAY_TIMEOUT_MS`, responde con error o con una forma inesperada |
+
+### `POST /api/transactions`
+
+**Request**
+
+```json
+{
+  "productId": "01920000-0000-7000-8000-000000000001",
+  "quantity": 1,
+  "customer": {
+    "fullName": "Ana Gómez",
+    "email": "ana@example.com",
+    "phone": "3001234567"
+  },
+  "delivery": {
+    "recipientName": "Ana Gómez",
+    "phone": "3001234567",
+    "addressLine1": "Calle 10 # 20-30",
+    "addressLine2": "Apto 402",
+    "city": "Medellín",
+    "region": "Antioquia",
+    "postalCode": "050021"
+  }
+}
+```
+
+| Campo | Validación |
+|-------|------------|
+| `productId` | UUID |
+| `quantity` | Entero `1..10` |
+| `customer.fullName` | 3–120 caracteres |
+| `customer.email` | Email válido |
+| `customer.phone` | 7–20 dígitos; los espacios se ignoran (`300 123 4567` es válido) |
+| `delivery.recipientName`, `delivery.phone` | Igual que los del cliente |
+| `delivery.addressLine1` | 5–200 caracteres |
+| `delivery.addressLine2`, `delivery.postalCode` | Opcionales |
+| `delivery.city`, `delivery.region` | 2–80 caracteres |
+
+**201:** `TransactionResponse` (ver abajo) con `status: "PENDING"` y `paymentSubmitted: false`.
+
+Comportamiento:
+
+- **Todavía no se cobra:** solo se abre la compra. El cobro ocurre en `POST /api/transactions/:id/payment`.
+- **Los montos los calcula el backend** con el precio vigente del producto y las tarifas configuradas. La petición no los incluye; si los envía, responde 400 (campo no permitido).
+- **Orden de comprobación:** formato (400) → reglas del dominio → producto (404) → stock (409). Si el producto no existe o está agotado, el cliente no se registra.
+- **Cliente:** se identifica por su email normalizado (`Ana@Example.com` = `ana@example.com`). Si ya existe, se reutiliza y se actualizan nombre y teléfono.
+- **Entrega:** se crea junto con la transacción, en la misma escritura atómica, en estado `PENDING_PAYMENT`. Los opcionales vacíos se guardan como `null`.
+- **Textos:** se recortan los espacios de los extremos antes de validar, así que `"   "` no cuenta como un nombre.
+- **Stock:** crear la transacción no descuenta unidades. Se reserva justo antes de llamar a la pasarela y se devuelve si el resultado final no es aprobado.
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `INVALID_REQUEST` | 400 | Formato inválido |
+| `PRODUCT_NOT_FOUND` | 404 | El producto no existe |
+| `OUT_OF_STOCK` | 409 | `quantity` mayor que el stock |
+| `DB_QUERY_FAILED` | 500 | La base de datos no responde |
+
+### `POST /api/transactions/:id/payment`
+
+Envía el cobro a la pasarela. La respuesta puede traer ya el estado final o seguir en `PENDING`; en ese caso la SPA consulta `GET /api/transactions/:id`.
+
+**Request**
+
+```json
+{
+  "cardToken": "tok_...",
+  "installments": 1,
+  "acceptanceToken": "eyJhbGciOi...",
+  "personalDataAuthToken": "eyJhbGciOi..."
+}
+```
+
+| Campo | Validación |
+|-------|------------|
+| `cardToken` | Obligatorio. Token devuelto por la tokenización en el frontend |
+| `installments` | Entero `1..36` |
+| `acceptanceToken`, `personalDataAuthToken` | Obligatorios. Vienen de `GET /api/checkout/config` y solo se envían si el cliente marcó las dos casillas |
+
+**200:** `TransactionResponse`. **Un pago rechazado no es un error HTTP**: responde 200 con `status: "DECLINED"` y el motivo en `statusMessage`.
+
+Comportamiento:
+
+- **Orden de comprobación:** formato (400) → la transacción existe (404) → sigue `PENDING` y sin cobro enviado (409) → reclamar el envío y reservar stock atómicamente (409 si otra petición se adelantó o no quedan unidades) → cobro en la pasarela.
+- **Nunca se cobra dos veces ni se sobrevende:** la reclamación (`UPDATE … WHERE payment_submitted_at IS NULL`) y el decremento (`UPDATE … WHERE stock >= quantity`) comparten una transacción PostgreSQL. Entre dos envíos de la misma compra o dos compras de la última unidad, solo uno pasa.
+- **Persistencia antes del polling:** cuando el `POST` responde, el backend guarda inmediatamente el id y el estado inicial del cobro. Solo después espera su estado final; un reinicio o `GET` concurrente puede retomar la consulta sin volver a cobrar.
+- **Error inequívoco frente a resultado ambiguo:** un 4xx del `POST` confirma el rechazo y termina en `ERROR`, cancelando la entrega y devolviendo la reserva. Red, timeout, 5xx o respuesta inválida responden 502, pero conservan la transacción `PENDING` y el stock reservado.
+- **Espera acotada:** tras crear el cobro, el backend consulta su estado hasta `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` (10 s). En el Sandbox, una tarjeta aprobada tarda ~1 s y una rechazada ~2 s. Si no hay resultado a tiempo, responde `PENDING` y la SPA sigue con `GET`.
+- **Los tokens de aceptación son de un solo uso:** la pasarela los consume en el primer intento de cobro, aunque falle. Por eso cada cobro usa los de un `GET /api/checkout/config` reciente.
+- **Solo tokens:** el cuerpo no admite otros campos. Si se envía `cardNumber` o similar, responde 400: el número de la tarjeta nunca llega al backend.
+- **Rate limiting propio:** 10 intentos de pago por minuto por IP (el límite general es 100).
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `INVALID_REQUEST` | 400 | Formato inválido |
+| `TRANSACTION_NOT_FOUND` | 404 | No existe |
+| `TRANSACTION_ALREADY_RESOLVED` | 409 | Ya está en un estado final |
+| `PAYMENT_ALREADY_SUBMITTED` | 409 | El pago ya se envió; consultar con `GET` |
+| `OUT_OF_STOCK` | 409 | La reserva atómica no encontró suficientes unidades |
+| `PAYMENT_GATEWAY_REJECTED` | 502 | La pasarela rechazó la petición (token inválido o vencido…). La transacción queda en `ERROR` |
+| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | No se pudo confirmar el resultado del `POST`. La transacción conserva `PENDING` y la reserva; consultar con `GET` y no volver a cobrar |
+
+### `GET /api/transactions/:id`
+
+Devuelve la transacción. Si está `PENDING` y tiene el id externo del cobro, primero consulta el estado en la pasarela y, si ya es final, liquida la transacción. La operación es idempotente: repetirla no cambia el resultado. Si el `POST` no devolvió un id, conserva `PENDING` y la reserva sin reenviar el cobro.
+
+**200:** `TransactionResponse`.
+
+| Error | HTTP | Cuándo |
+|-------|------|--------|
+| `INVALID_REQUEST` | 400 | `id` no es un UUID |
+| `TRANSACTION_NOT_FOUND` | 404 | No existe |
+
+Si la pasarela no responde durante la sincronización, **no es un error**: se devuelve la transacción tal como está (`PENDING`) y la SPA vuelve a consultar.
+
+### `TransactionResponse`
+
+```json
+{
+  "id": "0192f3a8-5c1e-7b2d-9a4f-6e8c1d2b3a45",
+  "reference": "TX-0192F3A85C1E7B2D9A4F6E8C1D2B3A45",
+  "status": "APPROVED",
+  "statusMessage": null,
+  "paymentSubmitted": true,
+  "quantity": 1,
+  "product": {
+    "id": "01920000-0000-7000-8000-000000000001",
+    "name": "Audífonos inalámbricos",
+    "imageUrl": "/images/products/wireless-headphones.webp"
+  },
+  "amounts": {
+    "currency": "COP",
+    "unitPriceInCents": 18990000,
+    "productAmountInCents": 18990000,
+    "baseFeeInCents": 250000,
+    "deliveryFeeInCents": 800000,
+    "totalInCents": 20040000
+  },
+  "customer": { "fullName": "Ana Gómez", "email": "ana@example.com" },
+  "delivery": {
+    "status": "ASSIGNED",
+    "recipientName": "Ana Gómez",
+    "addressLine1": "Calle 10 # 20-30",
+    "city": "Medellín",
+    "region": "Antioquia"
+  },
+  "createdAt": "2026-09-26T15:04:05.000Z",
+  "finalizedAt": "2026-09-26T15:04:09.000Z"
+}
+```
+
+Tras `POST /api/transactions` la respuesta tiene la misma forma con `status: "PENDING"`, `paymentSubmitted: false`, `delivery.status: "PENDING_PAYMENT"` y `finalizedAt: null`.
+
+`gatewayTransactionId` no se expone: es un detalle interno de la integración.
+
+## 6. Catálogo de errores
+
+| `code` | HTTP | Endpoints |
+|--------|------|-----------|
+| `INVALID_REQUEST` | 400 | Todos |
+| `INVALID_QUANTITY` | 422 | Protección del dominio (`Quantity`). La validación HTTP es más estricta y lo intercepta antes con un 400 |
+| `INVALID_EMAIL` | 422 | Protección del dominio (`Email`). La validación HTTP es más estricta y lo intercepta antes con un 400 |
+| `PRODUCT_NOT_FOUND` | 404 | `GET /products/:id`, `POST /transactions` |
+| `TRANSACTION_NOT_FOUND` | 404 | `POST /transactions/:id/payment`, `GET /transactions/:id` |
+| `OUT_OF_STOCK` | 409 | `POST /transactions`, `POST /transactions/:id/payment` |
+| `TRANSACTION_ALREADY_RESOLVED` | 409 | `POST /transactions/:id/payment` |
+| `PAYMENT_ALREADY_SUBMITTED` | 409 | `POST /transactions/:id/payment` |
+| `PAYMENT_GATEWAY_REJECTED` | 502 | `POST /transactions/:id/payment` |
+| `PAYMENT_GATEWAY_UNAVAILABLE` | 502 | `GET /checkout/config`, `POST /transactions/:id/payment` |
+| `NOT_FOUND` | 404 | Ruta inexistente |
+| `PAYLOAD_TOO_LARGE` | 413 | Cuerpo de la petición demasiado grande |
+| `TOO_MANY_REQUESTS` | 429 | Todos (rate limiting) |
+| `DB_QUERY_FAILED` | 500 | Todos |
+| `INTERNAL_ERROR` | 500 | Todos (errores no previstos) |
+
+El frontend decide qué mostrar según el `code`, nunca según el `message`.
+
+## 7. Integración con la pasarela de pagos
+
+| Operación | Quién la hace | Credencial |
+|-----------|---------------|------------|
+| Obtener los contratos a aceptar | Backend (`GET /api/checkout/config`) | Llave pública |
+| Tokenizar la tarjeta | **Frontend**, directo a la pasarela, con la URL y la llave pública de `GET /api/checkout/config` | Llave pública |
+| Crear el cobro | Backend (`POST /api/transactions/:id/payment`) | **Llave pública + firma de integridad** |
+| Consultar el estado del cobro | Backend (`GET /api/transactions/:id`) | Ninguna: la consulta es pública |
+
+- **Firma de integridad:** `SHA256(reference + totalInCents + currency + secretoDeIntegridad)`, calculada solo en el backend.
+- En el cobro se envían `acceptance_token` y `accept_personal_auth` con los dos tokens aceptados por el cliente.
+- **Estados de la pasarela:** `PENDING`, `APPROVED`, `DECLINED`, `VOIDED`, `ERROR`. Se guardan tal cual en `Transaction.status`.
+- **Seguimiento por consulta (polling), no por webhooks.** Los webhooks se configuran en el panel del comercio, y la cuenta Sandbox es compartida entre candidatos: cambiar su URL de eventos afectaría a otros. El backend consulta hasta ~10 s tras enviar el pago, y la SPA sigue consultando `GET /api/transactions/:id` cada 2 s hasta 60 s.
+- **Verificado en el Sandbox:** el cobro se crea con la llave pública (con la privada la pasarela responde "Llave no válida") y la firma de integridad. La consulta del estado no requiere credenciales. **El backend no necesita la llave privada**, así que no la guarda: es un secreto menos que proteger.
+- **Cobro (implementado):** `POST {PAYMENT_GATEWAY_BASE_URL}/transactions` con `acceptance_token`, `accept_personal_auth`, `amount_in_cents`, `currency`, `signature`, `customer_email`, `reference` y `payment_method: { type: "CARD", token, installments }`. Respuestas 4xx (firma inválida, token ya usado, referencia repetida) → `PAYMENT_GATEWAY_REJECTED`, `ERROR` y devolución de stock; red, timeout, 5xx o cuerpo inválido → `PAYMENT_GATEWAY_UNAVAILABLE`, pero la compra conserva `PENDING` y la reserva.
+- **Estado (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/transactions/{id}` → `data.status` y `data.status_message`. Un estado desconocido o una respuesta sin `id` se tratan como `PAYMENT_GATEWAY_UNAVAILABLE`.
+- **Referencia única:** la pasarela rechaza una referencia repetida ("La referencia ya ha sido usada"). La nuestra deriva del id de la transacción, así que nunca se repite.
+- **Contratos (implementado):** `GET {PAYMENT_GATEWAY_BASE_URL}/merchants/{llavePública}`. De la respuesta se usan `data.presigned_acceptance` (política de uso) y `data.presigned_personal_data_auth` (datos personales), cada uno con `acceptance_token` y `permalink`. La respuesta se valida antes de usarla: si falta un campo, se responde `PAYMENT_GATEWAY_UNAVAILABLE`.
+- **Timeout:** cada petición a la pasarela se corta a los `PAYMENT_GATEWAY_TIMEOUT_MS` (10 s por defecto).
+- **Reintentos solo en las consultas:** los `GET` (contratos y estado del cobro) son idempotentes, así que se reintentan ante un fallo pasajero: error de red, 5xx o 429. Hasta `PAYMENT_GATEWAY_GET_RETRIES` veces (2 por defecto), esperando `PAYMENT_GATEWAY_RETRY_BACKOFF_MS` (250 ms) y el doble en cada reintento. Todos los intentos comparten el mismo timeout: reintentar nunca alarga la espera total. Un 4xx no se reintenta porque la respuesta no cambiará. **El `POST` del cobro nunca se reintenta:** no es idempotente y un segundo envío podría cobrar dos veces.
+- **Sandbox:** la URL correcta es la de Sandbox del enunciado (`UAT_SANDBOX_URL`). La llave pública del PDF lleva una `l` minúscula donde la imagen parece mostrar una `I` mayúscula; con la `I` la pasarela responde 404. El secreto de integridad tiene el caso inverso: dos `I` mayúsculas que en la imagen parecen `l`; con las `l` la pasarela responde "La firma es inválida".
+- **Respuesta perdida al crear:** si el `POST` no devuelve su id, no existe una consulta pública por referencia. La compra queda protegida en `PENDING`, conserva el stock y bloquea un segundo cobro, pero su resolución requiere conciliación manual por referencia o un webhook. Los webhooks no se configuran porque la cuenta Sandbox es compartida entre candidatos.
+
+### Tarjetas de prueba (Sandbox)
+
+Verificadas contra el Sandbox:
+
+| Número | Resultado |
+|--------|-----------|
+| `4242 4242 4242 4242` | `APPROVED` (~1 s) |
+| `4111 1111 1111 1111` | `DECLINED` (~2 s), con `statusMessage` "La transacción fue rechazada (Sandbox)" |
+
+Fecha de vencimiento futura y CVC de 3 dígitos.
+
+## 8. Variables de entorno
+
+**Backend (`backend/.env`)**
+
+| Variable | Uso |
+|----------|-----|
+| `PORT` | Puerto de la API |
+| `DATABASE_URL` | Conexión a PostgreSQL |
+| `CORS_ORIGIN` | Origen permitido (URL del frontend) |
+| `BASE_FEE_IN_CENTS` | Tarifa base en centavos (por defecto `250000`) |
+| `DELIVERY_FEE_IN_CENTS` | Tarifa de envío en centavos (por defecto `800000`) |
+| `PAYMENT_GATEWAY_BASE_URL` | URL de la API de la pasarela (Sandbox). Obligatoria, `https` |
+| `PAYMENT_GATEWAY_PUBLIC_KEY` | Llave pública. Obligatoria, empieza por `pub_` |
+| `PAYMENT_GATEWAY_TIMEOUT_MS` | Timeout por petición a la pasarela (por defecto `10000`) |
+| `PAYMENT_GATEWAY_INTEGRITY_SECRET` | Secreto de integridad: firma cada cobro. Obligatorio |
+| `PAYMENT_GATEWAY_POLL_TIMEOUT_MS` | Espera máxima del estado final tras cobrar (por defecto `10000`) |
+| `PAYMENT_GATEWAY_POLL_INTERVAL_MS` | Frecuencia de consulta durante la espera (por defecto `1000`) |
+| `PAYMENT_GATEWAY_GET_RETRIES` | Reintentos de una consulta `GET` ante un fallo pasajero (por defecto `2`, máximo `5`). El cobro nunca se reintenta |
+| `PAYMENT_GATEWAY_RETRY_BACKOFF_MS` | Espera antes del primer reintento; se duplica en cada uno (por defecto `250`) |
+
+**Frontend:** no necesita variables de entorno. Llama a la API en `/api`, en su mismo origen, y recibe la URL de la pasarela y la llave pública en `GET /api/checkout/config`. Así la configuración de la pasarela vive en un solo lugar, el `.env` del backend, y cambiar de llave no obliga a recompilar la SPA.
+
+En el repositorio solo existen los `.env.example`, con los valores vacíos.
+
+## 9. Casos de uso previstos (backend)
+
+| Caso de uso | Endpoint | Ports que usa |
+|-------------|----------|---------------|
+| `ListProducts` | `GET /api/products` | `ProductRepository` |
+| `GetProduct` | `GET /api/products/:id` | `ProductRepository` |
+| `GetCheckoutConfig` | `GET /api/checkout/config` | `CheckoutSettings`, `PaymentGateway` |
+| `CreateTransaction` | `POST /api/transactions` | `ProductRepository`, `CustomerRepository`, `TransactionRepository`, `CheckoutSettings` |
+| `SubmitPayment` | `POST /api/transactions/:id/payment` | `TransactionRepository`, `PaymentGateway`, `Clock` |
+| `GetTransaction` | `GET /api/transactions/:id` | `TransactionRepository`, `PaymentGateway`, `Clock` |
+
+- `SubmitPayment` y `GetTransaction` comparten la regla de liquidación (`recordPaymentResult`).
+- `TransactionRepository.findViewById` carga la transacción con su producto y su cliente en una sola consulta; la reserva definitiva del stock ocurre dentro de `claimPaymentSubmission`.
+- Crear la transacción y su entrega es atómico: `TransactionRepository.create` guarda ambas en una sola transacción de base de datos. El módulo de entregas aporta su entidad, sus reglas de estado y su mapper.
+- La reclamación con reserva (`claimPaymentSubmission`) y la liquidación (`savePaymentResult`) son métodos del repositorio que el adapter de Prisma ejecuta dentro de `prisma.$transaction`.
+- `CheckoutSettings` es un port que entrega las tarifas desde la configuración, para que el dominio no lea `process.env`.

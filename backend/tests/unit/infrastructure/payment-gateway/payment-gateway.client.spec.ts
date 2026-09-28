@@ -1,0 +1,352 @@
+import type { PaymentRequest } from '@application/ports/payment-gateway.port';
+import { anAcceptanceContracts } from '@testing/fixtures/checkout.fixture';
+import { aGatewayTransactionResponse } from '@testing/fixtures/gateway-transaction.fixture';
+import {
+  aMerchantResponse,
+  jsonResponse,
+} from '@testing/fixtures/merchant-response.fixture';
+import {
+  aPaymentResult,
+  GATEWAY_TRANSACTION_ID,
+} from '@testing/fixtures/transaction.fixture';
+import { mockConfigService } from '@testing/mocks/config-service.mock';
+import { integritySignature } from '@infrastructure/payment-gateway/integrity-signature';
+import { PaymentGatewayHttpClient } from '@infrastructure/payment-gateway/payment-gateway.client';
+
+const INTEGRITY_SECRET = 'test_integrity_0123456789abcdef';
+
+describe('PaymentGatewayHttpClient', () => {
+  let fetchMock: jest.SpyInstance;
+
+  const clientWith = (baseUrl: string) =>
+    new PaymentGatewayHttpClient(
+      mockConfigService({
+        PAYMENT_GATEWAY_BASE_URL: baseUrl,
+        PAYMENT_GATEWAY_PUBLIC_KEY: 'pub_test_abc123',
+        PAYMENT_GATEWAY_INTEGRITY_SECRET: INTEGRITY_SECRET,
+        PAYMENT_GATEWAY_TIMEOUT_MS: 5_000,
+        PAYMENT_GATEWAY_POLL_TIMEOUT_MS: 3,
+        PAYMENT_GATEWAY_POLL_INTERVAL_MS: 1,
+        PAYMENT_GATEWAY_GET_RETRIES: 2,
+        PAYMENT_GATEWAY_RETRY_BACKOFF_MS: 1,
+      }),
+    );
+
+  beforeEach(() => {
+    fetchMock = jest.spyOn(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    fetchMock.mockRestore();
+  });
+
+  describe('getPublicSettings', () => {
+    it('entrega la URL base y la llave pública, sin consultar la pasarela', () => {
+      expect(clientWith('https://gateway.test/v1').getPublicSettings()).toEqual(
+        {
+          baseUrl: 'https://gateway.test/v1',
+          publicKey: 'pub_test_abc123',
+        },
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('quita la barra final de la URL base', () => {
+      expect(
+        clientWith('https://gateway.test/v1//').getPublicSettings().baseUrl,
+      ).toBe('https://gateway.test/v1');
+    });
+
+    it('nunca expone el secreto de integridad', () => {
+      expect(
+        JSON.stringify(
+          clientWith('https://gateway.test/v1').getPublicSettings(),
+        ),
+      ).not.toContain(INTEGRITY_SECRET);
+    });
+  });
+
+  describe('getAcceptanceContracts', () => {
+    it('consulta el comercio con la llave pública y devuelve sus contratos', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(aMerchantResponse()));
+
+      const result = await clientWith(
+        'https://gateway.test/v1',
+      ).getAcceptanceContracts();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://gateway.test/v1/merchants/pub_test_abc123',
+        expect.any(Object),
+      );
+      expect(result._unsafeUnwrap()).toEqual(anAcceptanceContracts());
+    });
+
+    it('tolera una URL base configurada con barra final', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(aMerchantResponse()));
+
+      await clientWith('https://gateway.test/v1/').getAcceptanceContracts();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://gateway.test/v1/merchants/pub_test_abc123',
+        expect.any(Object),
+      );
+    });
+
+    it('falla con PAYMENT_GATEWAY_UNAVAILABLE si la pasarela rechaza la llave', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse({ error: { type: 'NOT_FOUND_ERROR' } }, 404),
+      );
+
+      const result = await clientWith(
+        'https://gateway.test/v1',
+      ).getAcceptanceContracts();
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('reintenta si la pasarela falla un momento', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, 502))
+        .mockResolvedValueOnce(jsonResponse(aMerchantResponse()));
+
+      const result = await clientWith(
+        'https://gateway.test/v1',
+      ).getAcceptanceContracts();
+
+      expect(result._unsafeUnwrap()).toEqual(anAcceptanceContracts());
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getPayment', () => {
+    it('consulta el cobro por su id, sin credenciales, y devuelve su estado', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(
+          aGatewayTransactionResponse({
+            status: 'DECLINED',
+            status_message: 'La transacción fue rechazada (Sandbox)',
+          }),
+        ),
+      );
+
+      const result = await clientWith('https://gateway.test/v1').getPayment(
+        GATEWAY_TRANSACTION_ID,
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `https://gateway.test/v1/transactions/${GATEWAY_TRANSACTION_ID}`,
+        {
+          headers: { Accept: 'application/json' },
+          signal: expect.any(AbortSignal) as unknown,
+        },
+      );
+      expect(result._unsafeUnwrap()).toEqual({
+        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+        status: 'DECLINED',
+        statusMessage: 'La transacción fue rechazada (Sandbox)',
+      });
+    });
+
+    it('reintenta una consulta que falla por la red', async () => {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(
+          jsonResponse(aGatewayTransactionResponse({ status: 'APPROVED' })),
+        );
+
+      const result = await clientWith('https://gateway.test/v1').getPayment(
+        GATEWAY_TRANSACTION_ID,
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('falla con PAYMENT_GATEWAY_UNAVAILABLE si el cobro no existe en la pasarela', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse({ error: { type: 'NOT_FOUND_ERROR' } }, 404),
+      );
+
+      const result = await clientWith('https://gateway.test/v1').getPayment(
+        'no-existe',
+      );
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+    });
+  });
+
+  describe('charge', () => {
+    const request: PaymentRequest = {
+      reference: 'TX-019200000000700080000000000000A1',
+      amountInCents: 20_040_000,
+      currency: 'COP',
+      customerEmail: 'ana@example.com',
+      cardToken: 'tok_stagtest_5113_abc',
+      installments: 1,
+      acceptanceToken: 'end-user-policy-token',
+      personalDataAuthToken: 'personal-data-auth-token',
+    };
+    const client = () => clientWith('https://gateway.test/v1');
+    const created = (status: string) =>
+      jsonResponse(aGatewayTransactionResponse({ status }), 201);
+
+    it('crea el cobro con la llave pública y la firma de integridad', async () => {
+      fetchMock.mockResolvedValueOnce(created('APPROVED'));
+
+      await client().charge(request);
+
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://gateway.test/v1/transactions');
+      expect(init).toMatchObject({
+        method: 'POST',
+        headers: { Authorization: 'Bearer pub_test_abc123' },
+      });
+      expect(JSON.parse(init.body as string)).toEqual({
+        acceptance_token: 'end-user-policy-token',
+        accept_personal_auth: 'personal-data-auth-token',
+        amount_in_cents: 20_040_000,
+        currency: 'COP',
+        signature: integritySignature(request, INTEGRITY_SECRET),
+        customer_email: 'ana@example.com',
+        reference: 'TX-019200000000700080000000000000A1',
+        payment_method: {
+          type: 'CARD',
+          token: 'tok_stagtest_5113_abc',
+          installments: 1,
+        },
+      });
+    });
+
+    it('devuelve enseguida el cobro PENDING para persistir su id', async () => {
+      fetchMock.mockResolvedValueOnce(created('PENDING'));
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrap()).toEqual({
+        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+        status: 'PENDING',
+        statusMessage: null,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('devuelve enseguida un resultado final', async () => {
+      fetchMock.mockResolvedValueOnce(created('DECLINED'));
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrap().status).toBe('DECLINED');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('falla con PAYMENT_GATEWAY_REJECTED si la pasarela rechaza el cobro', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              type: 'INPUT_VALIDATION_ERROR',
+              messages: { signature: ['La firma es inválida'] },
+            },
+          },
+          422,
+        ),
+      );
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrapErr().code).toBe('PAYMENT_GATEWAY_REJECTED');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('falla con PAYMENT_GATEWAY_UNAVAILABLE si la pasarela no responde', async () => {
+      fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+    });
+
+    it('nunca repite el cobro: un 5xx del POST no se reintenta', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 503));
+
+      const result = await client().charge(request);
+
+      expect(result._unsafeUnwrapErr().code).toBe(
+        'PAYMENT_GATEWAY_UNAVAILABLE',
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('waitForFinalStatus', () => {
+    const client = () => clientWith('https://gateway.test/v1');
+    const current = (status: string) =>
+      jsonResponse(aGatewayTransactionResponse({ status }));
+
+    it('consulta un cobro PENDING hasta recibir su resultado final', async () => {
+      fetchMock
+        .mockResolvedValueOnce(current('PENDING'))
+        .mockResolvedValueOnce(current('APPROVED'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('no consulta un cobro que ya llegó a estado final', async () => {
+      const payment = aPaymentResult({ status: 'DECLINED' });
+
+      const result = await client().waitForFinalStatus(payment);
+
+      expect(result._unsafeUnwrap()).toBe(payment);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('conserva PENDING cuando se agota la espera', async () => {
+      fetchMock.mockResolvedValue(current('PENDING'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('PENDING');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('reintenta una consulta pasajera y llega al estado final', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, 503))
+        .mockResolvedValueOnce(current('APPROVED'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap().status).toBe('APPROVED');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('si fallan las consultas conserva el último estado conocido', async () => {
+      fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+
+      const result = await client().waitForFinalStatus(
+        aPaymentResult({ status: 'PENDING' }),
+      );
+
+      expect(result._unsafeUnwrap()).toMatchObject({
+        gatewayTransactionId: GATEWAY_TRANSACTION_ID,
+        status: 'PENDING',
+      });
+    });
+  });
+});
