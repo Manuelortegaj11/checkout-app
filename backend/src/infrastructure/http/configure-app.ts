@@ -11,15 +11,10 @@ export interface HttpSettings {
   corsOrigin: string;
 }
 
-/**
- * Configuración HTTP común a la aplicación real y a los tests:
- * prefijo, cabeceras de seguridad, CORS, validación, formato de errores y Swagger.
- */
 export const configureApp = (
   app: NestExpressApplication,
   settings: HttpSettings,
 ): void => {
-  // Detrás de Nginx: el rate limiting usa la IP real del cliente.
   app.set('trust proxy', 'loopback');
   app.setGlobalPrefix(API_PREFIX);
   app.use(helmet());

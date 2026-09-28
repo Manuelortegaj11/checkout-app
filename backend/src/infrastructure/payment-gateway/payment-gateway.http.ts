@@ -14,7 +14,6 @@ const parseJson = (response: Response): ResultAsync<unknown, AppError> =>
     paymentGatewayUnavailable,
   );
 
-/** Lee el cuerpo de una respuesta no 2xx y lo guarda en la causa para el log. */
 const readFailedResponse = (
   response: Response,
   toError: GatewayErrorFactory,
@@ -23,26 +22,17 @@ const readFailedResponse = (
     (body) => errAsync(toError({ status: response.status, body })),
   );
 
-/** Reintentos de una consulta idempotente a la pasarela. */
 export interface RetryPolicy {
-  /** Reintentos después del primer intento. */
   readonly retries: number;
-  /** Espera antes del primer reintento; se duplica en cada uno. */
+
   readonly backoffMs: number;
 }
 
 export const NO_RETRY: RetryPolicy = { retries: 0, backoffMs: 0 };
 
-/** 5xx o 429: la pasarela puede responder bien si se insiste. Un 4xx no cambiará. */
 const isTransient = (response: Response): boolean =>
   response.status >= 500 || response.status === 429;
 
-/**
- * fetch que reintenta los fallos pasajeros (red, 5xx, 429) con espera
- * creciente. Todos los intentos comparten el mismo tiempo límite: reintentar
- * nunca alarga la espera total, solo aprovecha los fallos rápidos. Una
- * política sin reintentos válidos hace un único intento.
- */
 const fetchWithRetry = async (
   url: string,
   init: RequestInit,
@@ -58,7 +48,6 @@ const fetchWithRetry = async (
       if (!canRetry || !isTransient(response)) {
         return response;
       }
-      // Se descarta el cuerpo para liberar la conexión antes de reintentar.
       await response.body?.cancel();
     } catch (error) {
       if (!canRetry || signal.aborted) {
@@ -69,11 +58,6 @@ const fetchWithRetry = async (
   }
 };
 
-/**
- * GET a la pasarela que devuelve el cuerpo JSON sin tipar: quien llama lo valida.
- * Es idempotente, así que reintenta los fallos pasajeros según `retry`. Fallo
- * de red, timeout, respuesta no 2xx o JSON inválido → PAYMENT_GATEWAY_UNAVAILABLE.
- */
 export const getJson = (
   url: string,
   timeoutMs: number,
@@ -98,12 +82,6 @@ export interface PostOptions {
   readonly timeoutMs: number;
 }
 
-/**
- * POST autenticado a la pasarela. Nunca se reintenta: el cobro no es
- * idempotente. Un 4xx significa que la recibió y la rechazó
- * (PAYMENT_GATEWAY_REJECTED); red, timeout, 5xx o JSON inválido significan que
- * no se pudo completar (PAYMENT_GATEWAY_UNAVAILABLE).
- */
 export const postJson = (
   url: string,
   body: unknown,

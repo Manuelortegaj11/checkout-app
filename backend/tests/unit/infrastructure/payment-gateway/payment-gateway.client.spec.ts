@@ -25,10 +25,8 @@ describe('PaymentGatewayHttpClient', () => {
         PAYMENT_GATEWAY_PUBLIC_KEY: 'pub_test_abc123',
         PAYMENT_GATEWAY_INTEGRITY_SECRET: INTEGRITY_SECRET,
         PAYMENT_GATEWAY_TIMEOUT_MS: 5_000,
-        // Espera corta para los tests: hasta 3 consultas, cada 1 ms.
         PAYMENT_GATEWAY_POLL_TIMEOUT_MS: 3,
         PAYMENT_GATEWAY_POLL_INTERVAL_MS: 1,
-        // Hasta 2 reintentos por consulta, con 1 ms y luego 2 ms de espera.
         PAYMENT_GATEWAY_GET_RETRIES: 2,
         PAYMENT_GATEWAY_RETRY_BACKOFF_MS: 1,
       }),

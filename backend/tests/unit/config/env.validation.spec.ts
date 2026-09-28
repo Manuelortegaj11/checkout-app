@@ -1,6 +1,5 @@
 import { validateEnv } from '@config/env.validation';
 
-/** Variables obligatorias: sin ellas la API no arranca. */
 const REQUIRED = {
   DATABASE_URL:
     'postgresql://checkout:checkout@localhost:5433/checkout?schema=public',

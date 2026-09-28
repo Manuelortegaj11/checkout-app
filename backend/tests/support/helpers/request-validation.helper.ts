@@ -5,14 +5,6 @@ import {
   type FieldError,
 } from '@infrastructure/http/errors/validation-exception.factory';
 
-/**
- * Pasa un cuerpo por un request DTO como lo hace el ValidationPipe: primero
- * lo transforma (normalizaciones de los decoradores) y luego lo valida.
- * Devuelve la petición resultante y sus errores con la forma del contrato.
- *
- * Las opciones del pipe (rechazar campos desconocidos) se prueban en
- * tests/integration, con la aplicación configurada.
- */
 export const validateRequest = <T extends object>(
   dto: ClassConstructor<T>,
   body: object,

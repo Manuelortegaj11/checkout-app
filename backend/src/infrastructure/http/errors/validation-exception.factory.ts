@@ -6,10 +6,6 @@ export interface FieldError {
   message: string;
 }
 
-/**
- * Aplana los errores de class-validator, incluidos los de objetos anidados,
- * con la ruta completa del campo (por ejemplo `customer.email`).
- */
 export const flattenValidationErrors = (
   errors: ValidationError[],
   parentPath = '',
@@ -26,7 +22,6 @@ export const flattenValidationErrors = (
     return [...own, ...flattenValidationErrors(error.children ?? [], field)];
   });
 
-/** Error 400 de formato con la forma del contrato: `{ code, message, details }`. */
 export const invalidRequestException = (
   details: FieldError[],
 ): BadRequestException =>
@@ -36,7 +31,6 @@ export const invalidRequestException = (
     details,
   });
 
-/** `exceptionFactory` del ValidationPipe. */
 export const validationExceptionFactory = (
   errors: ValidationError[],
 ): BadRequestException =>

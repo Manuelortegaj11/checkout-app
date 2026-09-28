@@ -1,4 +1,3 @@
-// @ts-check
 import eslint from '@eslint/js';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
@@ -7,22 +6,18 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-// Capas prohibidas, tanto por alias (@store/...) como por ruta relativa (../store/...).
 const forbiddenLayers = (layers) => ({
   regex: `(^@|/)(${layers.join('|')})(/|$)`,
   message:
     'Regla de dependencias: app → features → shared (y store). shared no importa features, store ni app.',
 });
 
-// Una feature se usa desde otra solo a través de su index.ts.
 const FEATURE_INTERNALS = {
   regex: '^@features/[^/]+/',
   message:
     'Importa otra feature desde su API pública (@features/<feature>), no sus archivos internos.',
 };
 
-// Flux: la vista despacha thunks; nunca habla con la API. Sí puede usar los
-// tipos del contrato (import type), que no ejecutan nada.
 const API_FROM_VIEW = {
   regex: '(^@shared|/shared)/api(/|$)',
   allowTypeImports: true,
@@ -30,14 +25,12 @@ const API_FROM_VIEW = {
     'Los componentes no llaman a la API: despachan un thunk y leen el resultado con un selector.',
 };
 
-// Entre carpetas se importa con alias; las rutas relativas solo para vecinos cercanos.
 const LONG_RELATIVE_IMPORT = {
   regex: '^\\.\\./\\.\\./',
   message:
     'Usa los alias (@app, @features, @shared, @store, @testing) en lugar de subir más de un nivel.',
 };
 
-// Los fixtures y helpers de prueba solo existen para los tests, ni por alias ni por ruta relativa.
 const TESTING_IMPORTS = {
   regex: '^@testing/|^(\\.\\./)+tests/',
   message:
@@ -60,7 +53,6 @@ const DANGEROUS_HTML = {
   message: 'Nunca dangerouslySetInnerHTML: React ya escapa el contenido.',
 };
 
-// Seguridad: el número de tarjeta y el CVC viven solo en el formulario.
 const CARD_DATA_IN_STATE = {
   selector:
     ':matches(Property, PropertyDefinition, TSPropertySignature)[key.name=/^(cardNumber|cvc|cvv)$/i]',
@@ -167,28 +159,24 @@ export default tseslint.config(
     },
   },
   {
-    // Único punto que lee las variables VITE_*.
     files: ['src/shared/config/env.ts'],
     rules: {
       'no-restricted-syntax': ['error', DANGEROUS_HTML],
     },
   },
   {
-    // Único punto que hace peticiones HTTP.
     files: ['src/shared/api/http-client.ts'],
     rules: {
       'no-restricted-globals': ['error', ...BROWSER_STORAGE],
     },
   },
   {
-    // Único punto que toca localStorage: el motor de redux-persist.
     files: ['src/store/local-storage.ts'],
     rules: {
       'no-restricted-globals': ['error', FETCH],
     },
   },
   {
-    // Pruebas y utilidades de prueba: pueden importar @testing y montar dobles.
     files: ['tests/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser, ...globals.jest } },
     rules: {
@@ -198,7 +186,6 @@ export default tseslint.config(
     },
   },
   {
-    // Configuración de herramientas: se ejecuta en Node.
     files: ['*.config.ts'],
     languageOptions: { globals: globals.node },
   },

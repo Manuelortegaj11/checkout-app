@@ -1,17 +1,6 @@
-// Modelo de datos del checkout. Diseño: docs/api/contrato-api.md
-//
-// Convención de nombres:
-// - Prisma: modelos en PascalCase singular, campos en camelCase.
-// - PostgreSQL: tablas en snake_case plural (@@map), columnas en snake_case (@map).
-// - Dinero siempre en centavos y enteros (*InCents).
-//
-// Cambios de esquema: editar este archivo y ejecutar `pnpm db:migrate --name <cambio>`.
-// Nunca escribir ni editar migraciones SQL a mano.
-
 generator client {
   provider            = "prisma-client"
   output              = "../src/infrastructure/persistence/generated/prisma"
-  // CommonJS sin extensión en los imports: lo que esperan NestJS 11, Jest y ts-node.
   moduleFormat        = "cjs"
   importFileExtension = ""
 }

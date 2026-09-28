@@ -4,11 +4,6 @@ import type { PaymentResult } from '@domain/entities/transaction.entity';
 import type { AppError } from '@shared/errors/app-error';
 import type { ResultAsync } from '@shared/result';
 
-/**
- * Regla de liquidación compartida por el pago y la consulta: aplica la
- * respuesta de la pasarela a la transacción y la guarda. Si el estado es
- * final, eso liquida la compra y devuelve la reserva si no fue aprobada.
- */
 export const recordPaymentResult = (
   transactions: TransactionRepositoryPort,
   view: TransactionView,

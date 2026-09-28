@@ -18,7 +18,6 @@ describe('PrismaService', () => {
 
     const prisma = new PrismaService(config);
 
-    // PrismaClient devuelve un Proxy, así que se comprueba que exponga los modelos.
     expect(prisma.product).toBeDefined();
     expect(prisma.transaction).toBeDefined();
     expect(config.get).toHaveBeenCalledWith('DATABASE_URL', { infer: true });

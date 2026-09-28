@@ -7,7 +7,6 @@ import { fakeResponse, mockFetch } from '@testing/helpers/fetch.helper';
 
 const settings = aCheckoutConfig().paymentGateway;
 
-// Respuesta real del Sandbox, con los campos que la app no usa recortados.
 const tokenCreated = {
   status: 'CREATED',
   data: {

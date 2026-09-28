@@ -1,6 +1,5 @@
 import type { Persistor } from 'redux-persist';
 
-/** Espera a que redux-persist termine de recuperar el estado de localStorage. */
 export const rehydrated = (persistor: Persistor): Promise<void> =>
   new Promise((resolve) => {
     const isDone = () => persistor.getState().bootstrapped;
@@ -16,7 +15,6 @@ export const rehydrated = (persistor: Persistor): Promise<void> =>
     });
   });
 
-/** Lo que redux-persist guardó del checkout: cada clave va serializada aparte. */
 export const persistedCheckout = (): Record<string, unknown> => {
   const raw = localStorage.getItem('persist:checkout');
   if (raw === null) {

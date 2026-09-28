@@ -29,14 +29,12 @@ const renderModal = ({
     },
   });
 
-// Sin esperas entre teclas: el formulario es largo y cada tecla vuelve a pintarlo.
 const user = () => userEvent.setup({ delay: null });
 
 const field = (name: string) => screen.getByLabelText(name);
 const submitButton = () =>
   screen.getByRole('button', { name: 'Continuar al resumen' });
 
-/** Rellena pegando cada valor: un onChange por campo, como al pegar o autocompletar. */
 const fillValidForm = async () => {
   const values: Record<string, string> = {
     'Nombre completo': 'Ana Gómez',
@@ -57,8 +55,6 @@ const fillValidForm = async () => {
   }
 };
 
-// Rellenar el formulario completo son unas 20 interacciones: en una máquina
-// cargada supera los 5 s por defecto de Jest sin que nada vaya mal.
 jest.setTimeout(15_000);
 
 describe('PaymentModal', () => {

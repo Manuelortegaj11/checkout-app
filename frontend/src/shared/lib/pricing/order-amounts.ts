@@ -1,5 +1,4 @@
 export interface OrderFees {
-  /** Se cobra siempre, en cada compra. */
   baseFeeInCents: number;
   deliveryFeeInCents: number;
 }
@@ -11,11 +10,6 @@ export interface OrderAmounts {
   totalInCents: number;
 }
 
-/**
- * Desglose que el cliente ve antes de pagar: precio × cantidad + tarifa base +
- * envío. Es la misma fórmula del backend, que recalcula los montos al crear la
- * transacción; lo cobrado es siempre lo que calcula el backend.
- */
 export const orderAmounts = (
   unitPriceInCents: number,
   quantity: number,

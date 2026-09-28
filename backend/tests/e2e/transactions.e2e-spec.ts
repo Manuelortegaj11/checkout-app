@@ -9,12 +9,6 @@ import { AppModule } from '@infrastructure/modules/app.module';
 import { configureApp } from '@infrastructure/http/configure-app';
 import { PrismaService } from '@infrastructure/persistence/prisma.service';
 
-/**
- * Creación de transacciones contra PostgreSQL real, con los productos del seed.
- * Requiere `docker compose up -d` → `pnpm db:deploy` → `pnpm db:seed`.
- * Crear una transacción no descuenta stock, así que las pruebas no alteran el
- * inventario; al terminar se borran las transacciones y el cliente creados.
- */
 const SEED_HEADPHONES_ID = '01920000-0000-7000-8000-000000000001';
 const SEED_OUT_OF_STOCK_ID = '01920000-0000-7000-8000-000000000006';
 const CONCURRENT_PRODUCT_ID = '01920000-0000-7000-8000-00000000ca11';
@@ -63,7 +57,6 @@ describe('Transacciones (e2e)', () => {
   });
 
   afterAll(async () => {
-    // La entrega se borra en cascada con su transacción.
     await prisma.transaction.deleteMany({ where: { id: { in: createdIds } } });
     await prisma.product.deleteMany({ where: { id: CONCURRENT_PRODUCT_ID } });
     await prisma.customer.deleteMany({ where: { email } });

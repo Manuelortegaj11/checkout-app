@@ -8,15 +8,10 @@ export interface ModalProps {
   description?: string;
   onClose: () => void;
   children: ReactNode;
-  /** Acciones fijas al pie, siempre visibles aunque el contenido haga scroll. */
+
   footer?: ReactNode;
 }
 
-/**
- * Diálogo modal: hoja que sube desde abajo en móvil y tarjeta centrada desde
- * `sm`. Se monta solo mientras está abierto. Se cierra con Escape, con la X o
- * tocando el fondo.
- */
 export function Modal({
   title,
   description,

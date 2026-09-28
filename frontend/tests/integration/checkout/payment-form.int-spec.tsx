@@ -15,10 +15,6 @@ import { bodiesSentTo, fakeNetwork } from '@testing/helpers/fake-network';
 import { persistedCheckout } from '@testing/helpers/persistence.helper';
 import { renderApp } from '@testing/helpers/render-app';
 
-/**
- * Flujo del formulario de pago con el store, la persistencia y los servicios
- * reales: solo la red es simulada (la API del backend y la pasarela).
- */
 const network = () =>
   fakeNetwork({
     'GET /api/products': () => fakeResponse(200, [aProduct()]),
@@ -54,7 +50,6 @@ describe('Formulario de pago (integración)', () => {
       '4242424242424242',
     );
 
-    // El número y el CVC solo viajaron a la pasarela, nunca al backend.
     expect(bodiesSentTo(fetchMock, '/api/').join()).not.toContain(
       '4242424242424242',
     );

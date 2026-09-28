@@ -6,7 +6,6 @@ import {
   type Currency,
 } from '@domain/constants/currency.constants';
 
-/** Producto del inventario (documentación de Swagger). */
 export class ProductResponse implements ProductOutput {
   @ApiProperty({
     format: 'uuid',

@@ -2,7 +2,7 @@ import { formatCurrency } from '@shared/lib/format/currency';
 
 export interface PriceLine {
   label: string;
-  /** Detalle bajo el concepto, por ejemplo "2 × $ 189.900". */
+
   hint?: string;
   amountInCents: number;
 }
@@ -14,11 +14,6 @@ export interface PriceSummaryProps {
   currency: string;
 }
 
-/**
- * Desglose de un cobro. Es una lista de definiciones (<dl>): cada concepto es
- * un término y su importe la definición, así el lector de pantalla lee
- * "Tarifa base, 2.500 pesos" y no dos textos sueltos.
- */
 export function PriceSummary({
   lines,
   totalLabel = 'Total',

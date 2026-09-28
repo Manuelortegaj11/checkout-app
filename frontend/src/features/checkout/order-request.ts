@@ -6,7 +6,6 @@ import type {
 } from '@shared/api/transactions.api';
 import type { AddressForm, ContactForm } from './checkout-form.validation';
 
-/** Pago de contado: la tienda no ofrece cuotas. */
 export const INSTALLMENTS = 1;
 
 export interface OrderDraft {
@@ -19,11 +18,6 @@ export interface OrderDraft {
 const optional = (value: string): string | undefined =>
   value.trim() === '' ? undefined : value.trim();
 
-/**
- * Compra que se abre en el backend. Quien compra también recibe el pedido,
- * así que la entrega lleva su nombre y su teléfono. Los opcionales vacíos no
- * se envían.
- */
 export const toCreateTransactionRequest = ({
   productId,
   quantity,
@@ -49,7 +43,6 @@ export const toCreateTransactionRequest = ({
   };
 };
 
-/** Cobro con la tarjeta tokenizada y los dos contratos que el cliente aceptó. */
 export const toSubmitPaymentRequest = (
   card: TokenizedCard,
   acceptance: CheckoutConfig['acceptance'],

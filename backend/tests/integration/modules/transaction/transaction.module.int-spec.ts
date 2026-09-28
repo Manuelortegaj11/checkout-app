@@ -23,11 +23,6 @@ const UUID_V7 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const EXISTING_CUSTOMER_ID = '01920000-0000-7000-8000-00000000cafe';
 
-/**
- * Cableado real del contexto (controlador → caso de uso → repositorios de
- * productos, clientes y transacciones, pasarela, tarifas, UUID v7 y reloj) con
- * Prisma, la configuración y `fetch` simulados.
- */
 describe('TransactionModule', () => {
   let app: NestExpressApplication;
   const tx = {

@@ -23,7 +23,6 @@ import { TransactionResponse } from '../dtos/transaction.response';
 import { unwrapOrThrowHttp } from '../errors/app-error.http-mapper';
 import { parseUuid } from '../pipes/parse-uuid.pipe';
 
-/** Más estricto que el límite general: es el endpoint que cobra. */
 const PAYMENT_RATE_LIMIT = { default: { limit: 10, ttl: 60_000 } };
 
 @ApiTags('transactions')

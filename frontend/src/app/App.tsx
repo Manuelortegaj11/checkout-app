@@ -11,10 +11,6 @@ import { ProductCatalog } from '@features/products';
 import { useAppSelector } from '@store/hooks';
 import { AppLayout } from './AppLayout';
 
-/**
- * Raíz de la SPA: la pantalla visible sale solo del paso del checkout
- * guardado en el store, así un refresh vuelve exactamente al mismo punto.
- */
 export function App() {
   const step = useAppSelector(selectCheckoutStep);
 

@@ -1,6 +1,5 @@
 import type { DeliveryAddress } from '@domain/entities/delivery.entity';
 
-/** Dirección de entrega válida, tal como llega del checkout. */
 export const aDeliveryAddress = (
   overrides: Partial<DeliveryAddress> = {},
 ): DeliveryAddress => ({

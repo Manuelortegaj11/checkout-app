@@ -6,26 +6,18 @@ import { useDialogBehavior } from '@shared/hooks/use-dialog-behavior';
 export interface BackdropProps {
   title: string;
   description?: string;
-  /**
-   * Cierra el backdrop (Escape, la X o tocando el fondo). Sin él no se puede
-   * cerrar: por ejemplo, mientras se cobra un pago.
-   */
+
   onClose?: () => void;
-  /** Muestra "Volver" en la cabecera. */
+
   onBack?: () => void;
   children: ReactNode;
-  /** Acciones fijas al pie, siempre visibles aunque el contenido haga scroll. */
+
   footer?: ReactNode;
 }
 
 const HEADER_BUTTON =
   'grid size-11 shrink-0 cursor-pointer place-items-center rounded-control text-ink-muted transition-colors duration-150 ease-standard hover:bg-hover hover:text-ink';
 
-/**
- * Backdrop de Material Design: una capa frontal sube desde abajo sobre la
- * página, que queda atenuada detrás y asomando por arriba, así el cliente no
- * pierde el contexto. Es un diálogo modal: atrapa el foco y bloquea el fondo.
- */
 export function Backdrop({
   title,
   description,

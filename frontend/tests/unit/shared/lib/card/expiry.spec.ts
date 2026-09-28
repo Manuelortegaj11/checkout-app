@@ -28,7 +28,6 @@ describe('parseExpiry', () => {
 });
 
 describe('isExpired', () => {
-  // 15 de septiembre de 2026, hora local.
   const now = new Date(2026, 8, 15);
 
   it.each([

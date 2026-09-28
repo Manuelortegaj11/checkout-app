@@ -9,19 +9,14 @@ import type { Result } from '@shared/result';
 export interface CustomerProps {
   readonly id: string;
   readonly fullName: string;
-  /** Normalizado: es la identidad del cliente. */
+
   readonly email: string;
   readonly phone: string;
 }
 
-/**
- * Cliente de la tienda (aggregate root). Se identifica por su email:
- * si vuelve a comprar, se reutiliza y se actualizan sus datos de contacto.
- */
 export class Customer {
   private constructor(private readonly props: CustomerProps) {}
 
-  /** Nuevo cliente con sus datos normalizados. Falla si el email no es válido. */
   static create({
     id,
     fullName,
@@ -39,7 +34,6 @@ export class Customer {
     );
   }
 
-  /** Reconstruye un cliente ya persistido: sus datos fueron válidos al guardarse. */
   static reconstitute(props: CustomerProps): Customer {
     return new Customer({ ...props });
   }
@@ -48,7 +42,6 @@ export class Customer {
     return this.props.id;
   }
 
-  /** Copia de los datos: modificarla no altera la entidad. */
   toPlainObject(): CustomerProps {
     return { ...this.props };
   }

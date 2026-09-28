@@ -59,12 +59,6 @@ const extractMessage = (exception: HttpException): string => {
 
 const logger = new Logger('AllExceptionsFilter');
 
-/**
- * Convierte cualquier excepción en la forma de error del contrato: `{ code, message }`.
- * - Las respuestas que ya traen `code` (AppError, validación) se envían tal cual.
- * - El resto de HttpException recibe un `code` según su estado.
- * - Lo no previsto es un 500 genérico; el detalle solo va al log.
- */
 export const toErrorResponse = (exception: unknown): ErrorResponse => {
   if (!(exception instanceof HttpException)) {
     logger.error('Unhandled exception', describeError(exception));

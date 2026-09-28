@@ -7,7 +7,6 @@ import { isValidCvc } from '@shared/lib/card/cvc';
 import { isExpired, parseExpiry } from '@shared/lib/card/expiry';
 import { passesLuhn } from '@shared/lib/card/luhn';
 
-/** Quien compra: también recibe el pedido. */
 export interface ContactForm {
   fullName: string;
   email: string;
@@ -22,7 +21,6 @@ export interface AddressForm {
   postalCode: string;
 }
 
-/** Datos de la tarjeta: viven solo en el formulario, nunca en el store. */
 export interface CardForm {
   number: string;
   holder: string;
@@ -42,7 +40,6 @@ interface TextRule {
   short?: string;
 }
 
-/** Texto con largo mínimo y máximo, contado sin los espacios de los extremos. */
 const checkText = (
   value: string,
   { min = 0, max, empty, short }: TextRule,
@@ -59,7 +56,6 @@ const checkText = (
     : undefined;
 };
 
-// Las mismas reglas que valida el backend al crear la transacción.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_PATTERN = /^\d{7,20}$/;
 
@@ -106,7 +102,6 @@ export const validateAddress = ({
   postalCode: checkText(postalCode, { max: 20 }),
 });
 
-// La pasarela rechaza titulares de menos de 5 caracteres.
 const HOLDER_PATTERN = /^[\p{L}\s'.-]+$/u;
 
 const checkCardNumber = (value: string): string | undefined => {
@@ -137,7 +132,6 @@ const checkExpiry = (value: string, now: Date): string | undefined => {
   return isExpired(expiry, now) ? 'La tarjeta está vencida' : undefined;
 };
 
-/** `now` es la fecha actual: llega como parámetro para que la regla sea pura. */
 export const validateCard = (
   { number, holder, expiry, cvc }: CardForm,
   now: Date,

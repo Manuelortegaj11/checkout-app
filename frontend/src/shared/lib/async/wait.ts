@@ -1,10 +1,5 @@
 const abortError = () => new DOMException('La espera se canceló', 'AbortError');
 
-/**
- * Espera `ms` milisegundos. Si la señal se aborta, cancela el temporizador y
- * rechaza con un AbortError: así una consulta periódica se detiene en cuanto
- * su pantalla se desmonta.
- */
 export const wait = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) {

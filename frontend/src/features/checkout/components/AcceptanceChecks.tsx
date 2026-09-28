@@ -28,10 +28,6 @@ function DocumentLink({ href, children }: { href: string; children: string }) {
   );
 }
 
-/**
- * Las dos aceptaciones que exige la pasarela antes de cobrar, con casillas
- * explícitas y el enlace a cada documento.
- */
 export function AcceptanceChecks({
   contracts,
   accepted,

@@ -7,7 +7,6 @@ import type { AppError } from '@shared/errors/app-error';
 import { fromNullable, type ResultAsync } from '@shared/result';
 import { toProductOutput } from './product.mapper';
 
-/** Detalle de un producto. Falla con PRODUCT_NOT_FOUND si no existe. */
 export class GetProductUseCase implements UseCase<
   GetProductInput,
   ProductOutput

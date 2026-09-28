@@ -11,10 +11,6 @@ import {
 import { mockConfigService } from '@testing/mocks/config-service.mock';
 import { CheckoutModule } from '@infrastructure/modules/checkout/checkout.module';
 
-/**
- * Cableado real del contexto (controlador → caso de uso → adapters de tarifas
- * y pasarela) con la configuración fija y `fetch` simulado.
- */
 describe('CheckoutModule', () => {
   let app: NestExpressApplication;
   let fetchMock: jest.SpyInstance;

@@ -13,11 +13,6 @@ import { fromNullable, okAsync, type ResultAsync } from '@shared/result';
 import { recordPaymentResult } from './record-payment-result';
 import { toTransactionOutput } from './transaction.mapper';
 
-/**
- * Devuelve la transacción. Si tiene un cobro pendiente, antes pregunta a la
- * pasarela y, si ya es final, la liquida. Idempotente: repetirla no cambia
- * el resultado.
- */
 export class GetTransactionUseCase implements UseCase<
   GetTransactionInput,
   TransactionOutput
@@ -40,7 +35,6 @@ export class GetTransactionUseCase implements UseCase<
       .map(toTransactionOutput);
   }
 
-  /** Liquida la transacción si la pasarela ya tiene el resultado final del cobro. */
   private synchronize(
     view: TransactionView,
   ): ResultAsync<TransactionView, AppError> {
@@ -61,10 +55,6 @@ export class GetTransactionUseCase implements UseCase<
     );
   }
 
-  /**
-   * Si la pasarela no responde no es un error: se devuelve la transacción tal
-   * como está (PENDING) y el cliente vuelve a consultar.
-   */
   private fetchPayment(
     paymentId: string,
   ): ResultAsync<PaymentResult | null, never> {

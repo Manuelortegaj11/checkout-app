@@ -28,11 +28,6 @@ import {
 import { recordPaymentResult } from './record-payment-result';
 import { toTransactionOutput } from './transaction.mapper';
 
-/**
- * Cobra una transacción PENDING con la tarjeta tokenizada. Un pago rechazado
- * (DECLINED) es un resultado válido y viaja por el riel de éxito; solo es un
- * error lo que impide cobrar (estado, stock, doble envío o la pasarela).
- */
 export class SubmitPaymentUseCase implements UseCase<
   SubmitPaymentInput,
   TransactionOutput
@@ -66,7 +61,6 @@ export class SubmitPaymentUseCase implements UseCase<
       .map(toTransactionOutput);
   }
 
-  /** Marca el inicio del cobro mientras la transacción siga PENDING. */
   private startPayment(
     view: TransactionView,
   ): Result<TransactionView, AppError> {
@@ -75,7 +69,6 @@ export class SubmitPaymentUseCase implements UseCase<
       .map((transaction) => ({ ...view, transaction }));
   }
 
-  /** Reclama el envío y reserva stock antes de llegar a la pasarela. */
   private claimSubmission(
     view: TransactionView,
   ): ResultAsync<TransactionView, AppError> {
@@ -94,10 +87,6 @@ export class SubmitPaymentUseCase implements UseCase<
       });
   }
 
-  /**
-   * Envía el cobro. Solo un rechazo confirmado termina la compra en ERROR; si
-   * no hubo respuesta, conserva PENDING y la reserva porque el cobro pudo existir.
-   */
   private charge(
     view: TransactionView,
     input: SubmitPaymentInput,
@@ -124,7 +113,6 @@ export class SubmitPaymentUseCase implements UseCase<
       });
   }
 
-  /** El id ya está persistido: ahora es seguro esperar y sincronizar el estado. */
   private waitForFinalResult(
     view: TransactionView,
     payment: PaymentResult,
@@ -147,10 +135,6 @@ export class SubmitPaymentUseCase implements UseCase<
       );
   }
 
-  /**
-   * Compensación de un rechazo confirmado: la compra termina en ERROR y libera
-   * el stock. Si ni eso se puede guardar, prevalece el error de la pasarela.
-   */
   private failPayment(
     view: TransactionView,
     error: AppError,

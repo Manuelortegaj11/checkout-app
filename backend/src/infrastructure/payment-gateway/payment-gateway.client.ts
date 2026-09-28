@@ -20,7 +20,6 @@ import { getJson, postJson, type RetryPolicy } from './payment-gateway.http';
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Adapter HTTP de la pasarela de pagos. */
 @Injectable()
 export class PaymentGatewayHttpClient implements PaymentGatewayPort {
   private readonly baseUrl: string;
@@ -29,7 +28,7 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
   private readonly timeoutMs: number;
   private readonly pollIntervalMs: number;
   private readonly pollAttempts: number;
-  /** Reintentos de las consultas (GET), que son idempotentes. El cobro no se reintenta. */
+
   private readonly getRetry: RetryPolicy;
 
   constructor(config: ConfigService<EnvironmentVariables, true>) {
@@ -68,10 +67,6 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
     );
   }
 
-  /**
-   * Crea el cobro (autenticado con la llave pública y firmado con el secreto de
-   * integridad). Devuelve enseguida para que el caso de uso persista su id.
-   */
   charge(request: PaymentRequest): ResultAsync<PaymentResult, AppError> {
     return postJson(`${this.baseUrl}/transactions`, this.chargeBody(request), {
       bearerToken: this.publicKey,
@@ -85,7 +80,6 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
     return ResultAsync.fromSafePromise(this.pollUntilFinal(payment));
   }
 
-  /** La consulta es pública en la pasarela: no necesita credenciales. */
   getPayment(
     gatewayTransactionId: string,
   ): ResultAsync<PaymentResult, AppError> {
@@ -111,11 +105,6 @@ export class PaymentGatewayHttpClient implements PaymentGatewayPort {
     };
   }
 
-  /**
-   * Consulta el cobro hasta que tenga un estado final o se agote la espera.
-   * El cobro ya existe en la pasarela: un fallo al consultar no lo convierte en
-   * error, se devuelve el último estado conocido y se sincroniza después.
-   */
   private async pollUntilFinal(payment: PaymentResult): Promise<PaymentResult> {
     let latest = payment;
 

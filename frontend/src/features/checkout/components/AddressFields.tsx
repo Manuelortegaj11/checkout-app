@@ -3,7 +3,6 @@ import { TextField } from '@shared/ui/TextField';
 import type { AddressForm } from '../checkout-form.validation';
 import type { FormSectionProps } from './form-section';
 
-/** Dirección de entrega del pedido. */
 export function AddressFields({
   values,
   errors,

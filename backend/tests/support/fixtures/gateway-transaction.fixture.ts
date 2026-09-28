@@ -1,9 +1,5 @@
 import { GATEWAY_TRANSACTION_ID } from './transaction.fixture';
 
-/**
- * Respuesta de la pasarela al crear o consultar un cobro, con la forma real
- * del Sandbox (solo los campos relevantes).
- */
 export const aGatewayTransactionResponse = (
   data: Record<string, unknown> = {},
 ) => ({

@@ -2,7 +2,6 @@ import { Customer, type CustomerProps } from '@domain/entities/customer.entity';
 
 export const CUSTOMER_ID = '01920000-0000-7000-8000-00000000c001';
 
-/** Datos válidos (ya normalizados) de un cliente. */
 export const aCustomerProps = (
   overrides: Partial<CustomerProps> = {},
 ): CustomerProps => ({

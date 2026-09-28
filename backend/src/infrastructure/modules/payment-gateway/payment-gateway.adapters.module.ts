@@ -3,7 +3,6 @@ import { PAYMENT_GATEWAY_PROVIDER } from '@infrastructure/payment-gateway/paymen
 
 const providers = [PAYMENT_GATEWAY_PROVIDER];
 
-/** Adapter de la pasarela de pagos. Lo importan los contextos que la usan. */
 @Module({
   providers,
   exports: providers,

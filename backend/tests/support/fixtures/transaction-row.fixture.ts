@@ -4,10 +4,6 @@ import { aCustomerRow } from './customer-row.fixture';
 import { aProductRow } from './product-row.fixture';
 import { aTransaction } from './transaction.fixture';
 
-/**
- * Fila de `transactions` con su entrega, su producto y su cliente, tal como la
- * devuelve Prisma con `include`. Refleja el estado de la transacción recibida.
- */
 export const aTransactionViewRow = (
   transaction: Transaction = aTransaction(),
 ): TransactionViewRow => {

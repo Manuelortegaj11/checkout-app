@@ -10,7 +10,6 @@ export interface OrderLineProps {
   onQuantityChange: (quantity: number) => void;
 }
 
-/** El producto que se compra, con la cantidad y el subtotal. */
 export function OrderLine({
   product,
   quantity,

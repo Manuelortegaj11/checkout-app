@@ -1,11 +1,8 @@
-/** Tarifas que se suman al valor de los productos, en centavos. */
 export interface CheckoutFees {
-  /** Se cobra siempre, en cada compra. */
   readonly baseFeeInCents: number;
   readonly deliveryFeeInCents: number;
 }
 
-/** Desglose del cobro de una compra, en centavos. */
 export interface TransactionAmounts {
   readonly unitPriceInCents: number;
   readonly productAmountInCents: number;
@@ -20,7 +17,6 @@ export interface PurchaseContext {
   readonly fees: CheckoutFees;
 }
 
-/** Total = precio unitario × cantidad + tarifa base + tarifa de envío. */
 export const calculateTransactionAmounts = ({
   unitPriceInCents,
   quantity,

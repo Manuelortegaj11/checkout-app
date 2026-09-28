@@ -20,11 +20,9 @@ export const selectCheckoutConfigStatus = (state: RootState) =>
 export const selectCheckoutConfigErrorCode = (state: RootState) =>
   state.checkout.config.errorCode;
 
-/** Datos públicos de la pasarela para tokenizar; `null` hasta cargar la configuración. */
 export const selectPaymentGatewaySettings = (state: RootState) =>
   state.checkout.config.data?.paymentGateway ?? null;
 
-/** Producto que se está comprando, del inventario ya cargado. */
 export const selectCheckoutProduct = createSelector(
   [selectProducts, (state: RootState) => state.checkout.productId],
   (products, productId) =>
@@ -40,11 +38,9 @@ export const selectOrderStatus = (state: RootState) =>
 export const selectOrderErrorCode = (state: RootState) =>
   state.checkout.order.errorCode;
 
-/** Contratos que el cliente acepta antes de pagar; `null` hasta cargar la configuración. */
 export const selectAcceptanceContracts = (state: RootState) =>
   state.checkout.config.data?.acceptance ?? null;
 
-/** Desglose que se muestra antes de pagar; `null` hasta tener el producto y las tarifas. */
 export const selectOrderAmounts = createSelector(
   [
     selectCheckoutProduct,
