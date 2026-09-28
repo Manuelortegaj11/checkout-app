@@ -4,7 +4,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 
 ## Fuente de verdad
 
-- Enunciado completo: `docs/Enunciado test.md` (solo existe en local; `docs/` está en `.gitignore` porque contiene credenciales).
+- Enunciado completo: `docs/Enunciado test.md` (solo existe en local y está ignorado porque contiene credenciales). Los demás documentos de `docs/` sí se versionan.
 - Si algo de este archivo contradice el enunciado, manda el enunciado.
 
 ## Reglas no negociables
@@ -23,7 +23,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 | Frontend | **ReactJS** + TypeScript como **SPA** empaquetada con **Vite**, Redux Toolkit + redux-persist, Tailwind CSS |
 | Backend | NestJS 11 + TypeScript (CommonJS), Prisma 7, PostgreSQL 17 (Docker), neverthrow |
 | Tests | Jest en ambos (+ React Testing Library en el frontend) |
-| Deploy | VPS o EC2: Nginx (estático + proxy `/api`), PM2, HTTPS con Certbot |
+| Deploy | VPS con Ubuntu 24.04: Nginx (estático + proxy `/api`), PM2, PostgreSQL en Docker y HTTPS con Certbot |
 
 ## Estructura del repo
 
@@ -31,6 +31,7 @@ Guía para Claude Code en este repositorio. Es una prueba técnica FullStack: un
 frontend/   SPA con ReactJS + Vite
 backend/    NestJS API (hexagonal)
 deploy/     nginx.conf, ecosystem.config.js, deploy.sh
+docs/       Guía de despliegue y reportes de verificación; el enunciado privado se ignora
 README.md   Único README de la entrega
 ```
 

@@ -16,8 +16,8 @@ backend/src/infrastructure/persistence/generated/
 .env.*
 !.env.example
 
-# Documentación privada (credenciales)
-/docs/
+# El enunciado contiene credenciales compartidas y solo existe en local
+/docs/Enunciado test.md
 
 # Claude Code: preferencias personales
 .claude/settings.local.json
