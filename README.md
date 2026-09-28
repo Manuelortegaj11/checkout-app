@@ -22,6 +22,7 @@ El cliente elige un producto, llena la tarjeta y la dirección de entrega, revis
 - [Ejecución en local](#ejecución-en-local)
 - [Despliegue](#despliegue)
 - [Flujo de trabajo y uso de IA](#flujo-de-trabajo-y-uso-de-ia)
+- [Evidencia del flujo completo](#evidencia-del-flujo-completo)
 
 ## Flujo de la compra
 
@@ -396,3 +397,12 @@ La instalación, la arquitectura, la operación, las actualizaciones y las verif
 
 - **Git:** cada funcionalidad se desarrolla en su rama (`feature/`, `fix/`, `docs/`…) desde `staging` y vuelve por Pull Request con merge commit, para conservar el historial. `main` solo recibe la entrega final. Los commits siguen Conventional Commits, en español, y cada uno compila y pasa sus pruebas.
 - **IA como asistente:** el proyecto se desarrolló con Claude Code. [`CLAUDE.md`](CLAUDE.md) recoge las reglas del proyecto (arquitectura, seguridad, base de datos, pruebas y Git), y las skills de [`.claude/skills/`](.claude/skills/) guían, paso a paso, cómo crear una funcionalidad en el backend y en el frontend. Las reglas que no pueden quedar a criterio de nadie, ni de una persona ni de la IA, las hace cumplir ESLint: capas, `fetch` y `localStorage` en un solo lugar, datos de tarjeta fuera del store, y nada de hora ni azar implícitos en el dominio.
+
+## Evidencia del flujo completo
+
+Capturas reales del entorno Sandbox. La aprobación descuenta una unidad del inventario; el rechazo muestra su motivo, cancela la entrega y conserva el stock. La verificación funcional y visual completa está registrada en el [reporte de prueba](<docs/Prueba flujo completo de checkout.md>).
+
+| Pago aprobado | Pago rechazado |
+|---|---|
+| **Procesamiento**<br><a href="docs/images/checkout/pago-aprobado-procesando.png"><img src="docs/images/checkout/pago-aprobado-procesando.png" alt="Procesamiento de un pago aprobado" width="480"></a> | **Procesamiento**<br><a href="docs/images/checkout/pago-rechazado-procesando.png"><img src="docs/images/checkout/pago-rechazado-procesando.png" alt="Procesamiento de un pago rechazado" width="480"></a> |
+| **Resultado aprobado**<br><a href="docs/images/checkout/pago-aprobado-resultado.png"><img src="docs/images/checkout/pago-aprobado-resultado.png" alt="Resultado aprobado con entrega asignada" width="480"></a> | **Resultado rechazado**<br><a href="docs/images/checkout/pago-rechazado-resultado.png"><img src="docs/images/checkout/pago-rechazado-resultado.png" alt="Resultado rechazado con entrega cancelada" width="480"></a> |
